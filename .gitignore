@@ -15,6 +15,10 @@
 
 # next.js
 /.next/
+/.next-integration/
+/.next-smoke/
+/playwright-report/
+/test-results/
 /out/
 
 # production

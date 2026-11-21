@@ -23,7 +23,7 @@ export async function api(handle: () => Promise<Response>) {
   }
 }
 
-export async function readJson<T>(request: Request, schema: z.ZodType<T>) {
+export async function readJson<Schema extends z.ZodTypeAny>(request: Request, schema: Schema): Promise<z.output<Schema>> {
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) throw new ApiError(403, "UNTRUSTED_ORIGIN");
   if (!request.headers.get("content-type")?.startsWith("application/json")) {

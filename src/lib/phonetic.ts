@@ -7,7 +7,7 @@ const aliases: Record<string, string> = {
 
 export function normalizeName(name?: string | null) {
   return (name ?? "").normalize("NFKD").toLowerCase().replace(/\p{Mark}/gu, "")
-    .replace(/[^\p{Letter}\s]/gu, " ").trim().replace(/بی\s+بی/gu, "بی بی");
+    .replace(/[^\p{Letter}\s]/gu, " ").trim().replace(/\s+/gu, " ");
 }
 
 export function phoneticKey(name?: string | null) {

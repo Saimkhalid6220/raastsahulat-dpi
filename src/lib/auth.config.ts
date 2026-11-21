@@ -28,7 +28,7 @@ export const authConfig = {
       return token;
     },
     session({ session, token }) {
-      session.user.id = token.sub;
+      session.user.id = token.sub ?? "";
       session.user.role = token.role as UserRole | undefined;
       session.user.tenantId = typeof token.tenantId === "string" ? token.tenantId : undefined;
       return session;

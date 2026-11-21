@@ -1,13 +1,11 @@
 import assert from "node:assert/strict";
-import { join } from "node:path";
-import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import { CitizenProfile, ConsentRecord } from "../src/lib/db";
 import { seed } from "./seed";
+import { startTestMongo } from "./test-mongo";
 
 async function verifySeed() {
-  process.env.MONGOMS_DOWNLOAD_DIR ??= join(process.cwd(), "node_modules", ".cache", "mongodb-binaries");
-  const mongo = await MongoMemoryReplSet.create({ replSet: { count: 1, ip: "127.0.0.1" } });
+  const mongo = await startTestMongo();
   process.env.MONGODB_URI = mongo.getUri("raastsahulat_phase1");
   try {
     const expected = { accounts: 5, families: 40, activeSeedGrants: 160, historicalCases: 15, scamSamples: 12 };
