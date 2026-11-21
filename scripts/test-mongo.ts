@@ -7,5 +7,10 @@ export function startTestMongo() {
   process.env.MONGOMS_DOWNLOAD_DIR ??= cache;
   const localBinary = join(cache, "bin", "mongod.exe");
   if (process.platform === "win32" && existsSync(localBinary)) process.env.MONGOMS_SYSTEM_BINARY ??= localBinary;
-  return MongoMemoryReplSet.create({ replSet: { count: 1, ip: "127.0.0.1" } });
+  return MongoMemoryReplSet.create({
+    replSet: {
+      count: 1, ip: "127.0.0.1",
+      spawn: { detached: process.platform === "win32", windowsHide: true },
+    },
+  });
 }

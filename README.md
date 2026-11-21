@@ -4,6 +4,18 @@ RaastSahulat is an unofficial hackathon prototype for emergency relief case rout
 
 ## Run locally
 
+For a rehearsal with a fresh synthetic database, run the following commands and open the loopback URL printed by the demo.
+
+```sh
+npm install
+npm run build
+npm run demo
+```
+
+The demo starts a disposable MongoDB replica set and seeds all five roles. Press Ctrl+C to stop it. Each launch starts with a fresh dataset.
+
+### Keep data between runs
+
 Use Node.js 22 and a MongoDB replica set or Atlas demo database. Set these values in `.env.local`.
 
 ```dotenv
@@ -53,7 +65,16 @@ npm run build
 npm run test:e2e
 ```
 
-The seed and test commands start disposable loopback MongoDB replicas. Set `MONGOMS_SYSTEM_BINARY` to an existing MongoDB 7 executable to use it instead of downloading the test binary. The Playwright smoke suite uses Microsoft Edge on Windows by default. Set `PLAYWRIGHT_CHANNEL` to use another installed Chromium channel, or install Playwright Chromium on other platforms.
+The seed verification and automated tests start disposable loopback MongoDB replicas. Set `MONGOMS_SYSTEM_BINARY` to an existing MongoDB 7 executable to use it instead of downloading the test binary. The Playwright smoke suite uses Microsoft Edge on Windows by default. Set `PLAYWRIGHT_CHANNEL` to use another installed Chromium channel, or install Playwright Chromium on other platforms. Set `RAAST_E2E_PRODUCTION=1` after building to run Playwright against the production build.
+
+## Deploy the synthetic demo
+
+1. Link the repository to the Vercel demo project. Select the Next.js framework preset and Node.js 22, with the repository root as the app root. Use `npm run build` as the build command. [Vercel project linking](https://vercel.com/docs/cli/link)
+2. Create a dedicated MongoDB Atlas database for synthetic fixtures. Configure the Atlas database user and network access for Vercel and the machine running the seed. [Atlas connection requirements](https://www.mongodb.com/docs/atlas/connect-to-database-deployment/)
+3. In the target Vercel environment, set `MONGODB_URI` to the Atlas URI with the demo database name in its path and set `AUTH_SECRET` to a freshly generated secret. Set `MONGOMS_DISABLE_POSTINSTALL=1` to skip downloading the test MongoDB binary during the hosted build. [Vercel environment variables](https://vercel.com/docs/environment-variables) · [Auth.js deployment settings](https://authjs.dev/getting-started/deployment)
+4. Run `npm run seed` with that same Atlas URI supplied through the local process environment. On a fresh database, check for five accounts, 40 families, 160 active grants, 15 historical cases, and 12 scam samples.
+5. Deploy to an access-protected Vercel preview and grant the judges access through Vercel. The shared fixtures include an administrator account. Apply Vercel protection to the production domain too if the demo moves to that domain. [Vercel Deployment Protection](https://vercel.com/docs/deployment-protection) · [Deployment commands](https://vercel.com/docs/cli/deploy)
+6. On the deployed HTTPS URL, verify the prototype banner, citizen sign-in, the case list, and `/api/openapi`. Run the walkthrough below against the dedicated demo database.
 
 ## Five-minute walkthrough
 

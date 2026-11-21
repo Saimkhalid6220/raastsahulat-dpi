@@ -1,15 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CitizenProfile, ReliefCase } from "../src/lib/db";
 import { demoApiKey, demoPassword } from "../src/lib/fixtures";
-import { startTestSite, type TestSite } from "./support/testSite";
+import { startSyntheticSite, type SyntheticSite } from "../scripts/synthetic-site";
 
-let site: TestSite;
+let site: SyntheticSite;
 let base = "";
 let output = "";
 const sessions = new Map<string, string>();
 
 beforeAll(async () => {
-  site = await startTestSite(".next-integration");
+  site = await startSyntheticSite(".next-integration");
   base = site.url;
 }, 170000);
 

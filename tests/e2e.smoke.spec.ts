@@ -1,11 +1,11 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { startTestSite, type TestSite } from "./support/testSite";
+import { startSyntheticSite, type SyntheticSite } from "../scripts/synthetic-site";
 
-let site: TestSite;
+let site: SyntheticSite;
 
 test.beforeAll(async () => {
   const production = process.env.RAAST_E2E_PRODUCTION === "1";
-  site = await startTestSite(production ? ".next" : ".next-smoke", production);
+  site = await startSyntheticSite(production ? ".next" : ".next-smoke", production);
 });
 test.afterAll(async () => { await site?.stop(); });
 test.afterEach(async ({ browserName }, info) => {
