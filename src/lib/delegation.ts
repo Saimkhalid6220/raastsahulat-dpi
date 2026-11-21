@@ -15,8 +15,8 @@ function signature(value: string) {
 export async function unlockCitizen(actor: Actor, citizenId: string, pin: string, otp: string) {
   await assertActiveConsent(citizenId, "HELPER_DELEGATION", actor);
   const credentials = await CitizenProfile.findOne({ _id: citizenId, assignedHelperId: actor.id })
-    .select("_id +helperAccessPinHash").lean();
-  if (!credentials || !await verifyPassword(pin, credentials.helperAccessPinHash) || otp !== "246810") {
+    .select({ helperAccessPinHash: 1 }).schemaLevelProjections(false).lean();
+  if (!credentials?.helperAccessPinHash || otp !== "246810" || !await verifyPassword(pin, credentials.helperAccessPinHash)) {
     throw new ApiError(403, "INVALID_DEMO_PIN_OR_OTP");
   }
   await assertActiveConsent(citizenId, "HELPER_DELEGATION", actor);

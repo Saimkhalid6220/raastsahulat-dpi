@@ -25,7 +25,13 @@ export async function api(handle: () => Promise<Response>) {
 
 export async function readJson<Schema extends z.ZodTypeAny>(request: Request, schema: Schema): Promise<z.output<Schema>> {
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) throw new ApiError(403, "UNTRUSTED_ORIGIN");
+  if (origin) {
+    const url = new URL(request.url);
+    const host = request.headers.get("host") ?? url.host;
+    const forwardedProtocol = request.headers.get("x-forwarded-proto");
+    const protocol = forwardedProtocol === "https" || forwardedProtocol === "http" ? `${forwardedProtocol}:` : url.protocol;
+    if (origin !== `${protocol}//${host}`) throw new ApiError(403, "UNTRUSTED_ORIGIN");
+  }
   if (!request.headers.get("content-type")?.startsWith("application/json")) {
     throw new ApiError(415, "JSON_REQUIRED");
   }

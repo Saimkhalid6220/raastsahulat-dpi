@@ -10,7 +10,8 @@
     "seed": "tsx scripts/seed.ts",
     "verify:seed": "tsx scripts/verify-seed.ts",
     "typecheck": "tsc --noEmit",
-    "test:backend": "vitest run tests/backend.integration.test.ts"
+    "test:backend": "vitest run tests/backend.integration.test.ts",
+    "test:e2e": "playwright test tests/e2e.smoke.spec.ts"
   },
   "dependencies": {
     "@next/env": "16.4.6",

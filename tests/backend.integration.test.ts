@@ -36,10 +36,11 @@ async function login(role: string) {
   return result;
 }
 
-async function send(path: string, options: { role?: string; method?: string; data?: unknown; key?: string } = {}) {
+async function send(path: string, options: { role?: string; method?: string; data?: unknown; key?: string; origin?: string } = {}) {
   const headers = new Headers();
   if (options.role) headers.set("cookie", await login(options.role));
   if (options.key) headers.set("x-api-key", options.key);
+  if (options.origin) headers.set("origin", options.origin);
   if (options.data !== undefined) headers.set("content-type", "application/json");
   const response = await fetch(`${base}${path}`, {
     method: options.method ?? "GET", headers,
@@ -63,7 +64,7 @@ describe("Phase 2 API and consent", () => {
   it("applies withdrawal to case access and evaluation and appends the denial to the audit trail", async () => {
     const profile = await family(1);
     const created = await send("/api/cases", {
-      role: "citizen", method: "POST", data: { requestedAmountPKR: 5000, draft: true },
+      role: "citizen", method: "POST", origin: base, data: { requestedAmountPKR: 5000, draft: true },
     });
     expect(created.status, output).toBe(201);
     expect((await send("/api/consent", { role: "citizen", method: "DELETE", data: { scope: "NADRA_IDENTITY" } })).status).toBe(200);
@@ -89,12 +90,31 @@ describe("Phase 2 API and consent", () => {
     const path = "/api/v1/public/cases";
     expect((await send(path, { method: "POST", data })).status).toBe(401);
     expect((await send(path, { method: "POST", data, key: "invalid" })).status).toBe(401);
+    expect((await send(path, { method: "POST", data, key: demoApiKey, origin: "https://unrelated.example.invalid" })).status).toBe(403);
     const created = await send(path, { method: "POST", data, key: demoApiKey });
     expect(created.status, output).toBe(201);
     const replay = await send(path, { method: "POST", data, key: demoApiKey });
     expect(replay.status).toBe(200);
     expect(replay.body.record.id).toBe(created.body.record.id);
   }, 30000);
+
+  it("unlocks a synthetic family with its credentials and binds the delegation to that family", async () => {
+    const first = (await family(2))._id.toString();
+    const second = (await family(4))._id.toString();
+    const denied = await send("/api/helper/roster", {
+      role: "helper", method: "POST", origin: base, data: { citizenId: first, pin: "9999", otp: "246810" },
+    });
+    expect(denied.status, output).toBe(403);
+    const access = await send("/api/helper/roster", {
+      role: "helper", method: "POST", origin: base, data: { citizenId: first, pin: "1234", otp: "246810" },
+    });
+    expect(access.status, output).toBe(200);
+    expect(access.body.cnic).toBe("0000000000002");
+    const unrelated = await send("/api/cases", { role: "helper", method: "POST", origin: base,
+      data: { citizenId: second, requestedAmountPKR: 5000, delegationToken: access.body.token } });
+    expect(unrelated.status).toBe(403);
+    expect(unrelated.body.error).toBe("DELEGATION_REQUIRED");
+  }, 90000);
 });
 
 const draftRule = {

@@ -12,7 +12,7 @@ AUTH_SECRET=replace-with-a-random-secret
 AUTH_TRUST_HOST=true
 ```
 
-Generate a secret with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`. Then run:
+Generate a secret with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`, then run the local setup commands.
 
 ```sh
 npm install
