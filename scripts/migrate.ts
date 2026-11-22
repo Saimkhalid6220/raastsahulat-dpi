@@ -1,6 +1,7 @@
 import { loadEnvConfig } from "@next/env";
 import { connectDB } from "../src/lib/db";
 import { addDocumentProvenance } from "./migrations/001-document-provenance";
+import { createCitizenAccountIndexes } from "./migrations/002-citizen-account-indexes";
 
 async function migrate() {
   loadEnvConfig(process.cwd(), true);
@@ -8,6 +9,8 @@ async function migrate() {
   try {
     const updated = await addDocumentProvenance();
     console.info(`001-document-provenance: updated ${updated} legacy cases`);
+    await createCitizenAccountIndexes();
+    console.info("002-citizen-account-indexes: account indexes ready");
   } finally {
     await db.disconnect();
   }

@@ -3,8 +3,11 @@ import { consentScopes, reviewDecisions, scamChannels } from "../types";
 import { demoDistricts, syntheticNames } from "./fixtures";
 
 export const emailAddress = z.string().trim().toLowerCase().email().max(254);
+export const accountCnic = z.string().trim().regex(/^(?:\d{13}|\d{5}-\d{7}-\d)$/, "Enter a 13-digit CNIC with or without dashes.")
+  .transform((value) => value.replaceAll("-", ""));
 export const citizenSignupInput = z.object({
   email: emailAddress,
+  cnic: accountCnic,
   password: z.string().min(8).max(100),
 }).strict();
 

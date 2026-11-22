@@ -4,6 +4,10 @@ import { roles } from "../types";
 const schema = new Schema({
   name: { type: String, required: true, trim: true },
   email: { type: String, required: true, unique: true, lowercase: true },
+  cnicHash: { type: String, unique: true, sparse: true, select: false },
+  emailVerified: Date,
+  emailVerificationHash: { type: String, unique: true, sparse: true, select: false },
+  emailVerificationExpiresAt: { type: Date, select: false },
   phone: { type: String, required: true, index: true },
   passwordHash: { type: String, required: true, select: false },
   role: { type: String, enum: roles, required: true },

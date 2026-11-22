@@ -25,49 +25,61 @@ test.afterEach(async ({ browserName }, info) => {
 async function signIn(page: Page, role: string, destination: string) {
   await page.goto(`${site.url}/login`);
   await page.getByRole("button", { name: role, exact: true }).click();
-  await page.getByLabel("Email address").fill(`${role.toLowerCase()}@demo.pk`);
+  await page.getByLabel(role === "Citizen" ? "Email or CNIC" : "Email address").fill(`${role.toLowerCase()}@demo.pk`);
   await page.getByLabel("Password").fill(demoPassword);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL(`**/${destination}`, { timeout: 45000 });
 }
 
-test("citizen signup sends a welcome email and signs in with manually entered credentials", async ({ page }) => {
+test("citizen signup verifies a personal email and signs in with a manually entered CNIC", async ({ page }) => {
   const email = "new.citizen@example.net";
+  const cnic = "00000-9999999-8";
   const password = "CitizenTest2026!";
   await page.goto(`${site.url}/login`);
   await page.getByRole("link", { name: "Create a citizen account" }).click();
   await page.waitForURL("**/signup");
   await page.getByLabel("Email address").fill("New.Citizen@example.net");
+  await page.getByLabel("CNIC", { exact: true }).fill(cnic);
   await page.getByLabel("Password").fill(password);
   const submitted = page.waitForResponse((response) => response.url().endsWith("/api/auth/signup") && response.request().method() === "POST");
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   expect((await submitted).status()).toBe(201);
-  await expect(page.getByText("Account created. Check your inbox for a welcome email.")).toBeVisible();
+  await expect(page.getByText("Account created. Check your inbox to verify your email.")).toBeVisible();
   expect(inbox.messages).toEqual([{
     recipient: `<${email}>`,
-    content: expect.stringContaining("Subject: Welcome to RaastSahulat"),
+    content: expect.stringContaining("Subject: Verify your RaastSahulat email"),
   }]);
   expect(inbox.messages[0].content).not.toContain(password);
 
-  const duplicate = await page.request.post(`${site.url}/api/auth/signup`, { data: { email, password } });
+  const duplicate = await page.request.post(`${site.url}/api/auth/signup`, { data: { email, cnic: "0000099999999", password } });
   expect(duplicate.status()).toBe(409);
   const staffSignup = await page.request.post(`${site.url}/api/auth/signup`, {
-    data: { email: "new.admin@example.net", password, role: "ADMIN" },
+    data: { email: "new.admin@example.net", cnic, password, role: "ADMIN" },
   });
   expect(staffSignup.status()).toBe(400);
   expect(inbox.messages).toHaveLength(1);
 
+  const verifyUrl = inbox.messages[0].content.replaceAll("=\n", "").replaceAll("=3D", "=")
+    .match(/https?:\/\/[^\s]+\/verify-email\?token=[a-f0-9]{64}/)?.[0];
+  expect(verifyUrl).toBeTruthy();
+  await page.goto(verifyUrl!);
+  await page.getByRole("button", { name: "Confirm email address" }).click();
+  await expect(page.getByRole("heading", { name: "Email verified" })).toBeVisible();
+  await page.goto(verifyUrl!);
+  await page.getByRole("button", { name: "Confirm email address" }).click();
+  await expect(page.getByText("This verification link is invalid, expired, or already used.")).toBeVisible();
   await page.getByRole("link", { name: "Go to sign in" }).click();
   await page.waitForURL("**/login");
   await page.getByRole("button", { name: "Citizen", exact: true }).click();
-  await expect(page.getByLabel("Email address")).toHaveValue("");
+  await expect(page.getByLabel("Email or CNIC")).toHaveValue("");
   await expect(page.getByLabel("Password")).toHaveValue("");
-  await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Email or CNIC").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Helper", exact: true }).click();
   await expect(page.getByLabel("Email address")).toHaveValue(email);
   await expect(page.getByLabel("Password")).toHaveValue(password);
   await page.getByRole("button", { name: "Citizen", exact: true }).click();
+  await page.getByLabel("Email or CNIC").fill(cnic.replaceAll("-", ""));
   const loginGate = Promise.withResolvers<void>();
   const casesGate = Promise.withResolvers<void>();
   await page.route("**/api/auth/callback/credentials", async (route) => {

@@ -4,13 +4,13 @@ import { z } from "zod";
 import { roles, type Actor, type UserRole } from "../types";
 import { logAudit } from "./auditLogger";
 import { authConfig } from "./auth.config";
-import { emailAddress } from "./contracts";
+import { accountCnic, emailAddress } from "./contracts";
 import { connectDB, User } from "./db";
-import { sha256, verifyPassword } from "./crypto";
+import { hashAccountCnic, sha256, verifyPassword } from "./crypto";
 import { ApiError } from "./http";
 
 const credentialsSchema = z.object({
-  email: emailAddress,
+  email: z.string().trim().max(254),
   password: z.string().min(1).max(100),
   role: z.enum(roles).optional(),
 });
@@ -20,13 +20,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
     Credentials({
-      credentials: { email: { label: "Email", type: "email" }, password: { label: "Password", type: "password" } },
+      credentials: { email: { label: "Email or CNIC", type: "text" }, password: { label: "Password", type: "password" } },
       async authorize(input) {
         const result = credentialsSchema.safeParse(input);
         if (!result.success) return null;
         await connectDB();
         const { email, password, role } = result.data;
-        const user = await User.findOne({ email, isActive: true }).select("+passwordHash").lean();
+        const address = emailAddress.safeParse(email);
+        const cnic = accountCnic.safeParse(email);
+        const lookup = address.success ? { email: address.data } : cnic.success && (!role || role === "CITIZEN")
+          ? { role: "CITIZEN", cnicHash: hashAccountCnic(cnic.data) } : null;
+        const user = lookup ? await User.findOne({ ...lookup, isActive: true }).select("+passwordHash").lean() : null;
         if (!await verifyPassword(password, user?.passwordHash ?? fallbackHash) || !user) return null;
         if (role && role !== user.role) return null;
         await logAudit({ id: user._id.toString(), role: user.role, tenantId: user.tenantId }, "SIGNED_IN", "User", user._id.toString());

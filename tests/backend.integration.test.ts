@@ -122,10 +122,13 @@ describe("Phase 2 API and consent", () => {
 describe("Hackathon requirements", () => {
   it("restricts demo signup to synthetic recipients", async () => {
     const password = "SyntheticCitizen-2026";
-    expect((await send("/api/auth/signup", { method: "POST", data: { email: "sample@example.net", password } })).body.error).toBe("SYNTHETIC_EMAIL_REQUIRED");
-    const result = await send("/api/auth/signup", { method: "POST", data: { email: `sample@${syntheticEmailDomain}`, password } });
+    const cnic = "00000-9999999-7";
+    expect((await send("/api/auth/signup", { method: "POST", data: { email: "sample@example.net", cnic, password } })).body.error).toBe("SYNTHETIC_EMAIL_REQUIRED");
+    const result = await send("/api/auth/signup", { method: "POST", data: { email: `sample@${syntheticEmailDomain}`, cnic, password } });
     expect(result.status, output).toBe(201);
     expect(result.body.emailSent).toBe(false);
+    const duplicate = await send("/api/auth/signup", { method: "POST", data: { email: `other@${syntheticEmailDomain}`, cnic: cnic.replaceAll("-", ""), password } });
+    expect(duplicate).toMatchObject({ status: 409, body: { error: "CNIC_ALREADY_REGISTERED" } });
   }, 90000);
 
   it("allows a citizen to correct synthetic data and withholds revoked inputs from auditor traces", async () => {

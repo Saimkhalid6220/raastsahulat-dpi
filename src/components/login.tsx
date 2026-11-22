@@ -26,6 +26,7 @@ export default function Login({ signup = false, personalSignup = false }: { sign
   const busy = submitting || navigating;
   const [role, setRole] = useState<UserRole>();
   const [registered, setRegistered] = useState<{ emailSent: boolean }>();
+  const acceptsCnic = !signup && (!role || role === "CITIZEN");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,7 +37,7 @@ export default function Login({ signup = false, personalSignup = false }: { sign
     setError("");
     try {
       if (signup) {
-        setRegistered(await request<{ emailSent: boolean }>("/api/auth/signup", "POST", { email, password }));
+        setRegistered(await request<{ emailSent: boolean }>("/api/auth/signup", "POST", { email, cnic: form.get("cnic"), password }));
         return;
       }
       const result = await signIn("credentials", { email, password, ...(role && { role }), redirect: false, redirectTo: "/" });
@@ -45,7 +46,7 @@ export default function Login({ signup = false, personalSignup = false }: { sign
           router.replace("/");
           router.refresh();
         });
-      } else setError("Could not sign in. Check your email, password, and selected role.");
+      } else setError("Could not sign in. Check your credentials and selected role.");
     } catch (failure) {
       setError(signup ? errorText(failure) : "The sign-in service is unavailable. Try again.");
     } finally {
@@ -68,11 +69,11 @@ export default function Login({ signup = false, personalSignup = false }: { sign
           <h2>{signup ? "Create a citizen account" : "Sign in to RaastSahulat"}</h2>
           {registered ? <div className="form-stack">
             <Notice tone={registered.emailSent ? "success" : "warning"}>
-              {registered.emailSent ? "Account created. Check your inbox for a welcome email." : personalSignup ? "Account created. The welcome email could not be sent. You can sign in now." : "Demo account created. You can sign in now."}
+              {registered.emailSent ? "Account created. Check your inbox to verify your email." : personalSignup ? "Account created. The verification email could not be sent. You can sign in now." : "Demo account created. You can sign in now."}
             </Notice>
             <Link className="button primary wide" href="/login">Go to sign in</Link>
           </div> : <>
-            <p className="muted">{signup ? personalSignup ? "Use an email address you can access." : `Choose a synthetic address such as citizen-27@${syntheticEmailDomain}.` : "Enter your account email and password."}</p>
+            <p className="muted">{signup ? personalSignup ? "Use an email address you can access." : `Use a synthetic address ending in @${syntheticEmailDomain} and a CNIC beginning with 00000.` : acceptsCnic ? "Enter your email or CNIC and password." : "Enter your account email and password."}</p>
             {!signup && <div className="demo-roles" role="group" aria-label="Account role">
               {accounts.map(([label, accountRole]) => <button
                 type="button" className={role === accountRole ? "demo-role selected" : "demo-role"}
@@ -81,7 +82,8 @@ export default function Login({ signup = false, personalSignup = false }: { sign
               >{label}</button>)}
             </div>}
             <form method="post" onSubmit={submit} className="form-stack">
-              <label>Email address<input name="email" type="email" autoComplete="username" maxLength={254} required disabled={!ready} /></label>
+              <label>{acceptsCnic ? "Email or CNIC" : "Email address"}<input name="email" type={acceptsCnic ? "text" : "email"} autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={254} required disabled={!ready} /></label>
+              {signup && <label>CNIC<input name="cnic" type="text" inputMode="numeric" maxLength={15} pattern="[0-9]{13}|[0-9]{5}-[0-9]{7}-[0-9]" title="13 digits, with or without dashes" autoComplete="off" required disabled={!ready} /></label>}
               <label>Password<input name="password" type="password" autoComplete={signup ? "new-password" : "current-password"} minLength={signup ? 8 : undefined} maxLength={100} required disabled={!ready} /></label>
               {signup && <p className="muted">Use at least 8 characters.</p>}
               {error && <Notice tone="danger">{error}</Notice>}

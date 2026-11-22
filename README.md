@@ -48,19 +48,19 @@ The seed defines 40 helper-linked households, 160 initial grants, 15 historical 
 
 ### Citizen welcome email
 
-The hackathon demo accepts signup with addresses ending in `@raastsahulat.example`. For example, use `citizen-27@raastsahulat.example`. The demo suppresses external delivery. The automated browser tests use a local SMTP inbox.
+Citizens register with an email address, a 13-digit CNIC, and a password. CNICs can be entered with or without dashes. Citizens can then sign in with their email or CNIC. Accounts created before CNIC signup continue to use their existing email.
 
-To enable personal signup and Gmail delivery in a separate environment, set these variables there.
+Set these variables for Gmail verification email delivery.
 
 ```dotenv
-RAAST_ALLOW_PERSONAL_SIGNUP=true
 GMAIL_USER=your-sender@gmail.com
 GMAIL_APP_PASSWORD=your-google-app-password
+AUTH_URL=https://your-app.example
 ```
 
-Create an app password on the Gmail sender account after enabling 2-Step Verification. If delivery fails or the sender is missing, signup still creates the account and shows the delivery status. [Google app password setup](https://support.google.com/accounts/answer/185833)
+Create an app password on the Gmail sender account after enabling 2-Step Verification. The email includes a single-use link valid for 24 hours. Sign-in remains available immediately, including if mail delivery fails. The browser tests use a local SMTP inbox. [Google app password setup](https://support.google.com/accounts/answer/185833)
 
-Signing up creates a synthetic claim profile. Citizens can correct it and grant or withdraw access from **Data & consent**. Keep `RAAST_ALLOW_PERSONAL_SIGNUP` unset for judging and use a dedicated database containing only synthetic accounts and records.
+Signup saves a keyed CNIC hash on the login account and creates a separate synthetic claim profile. Keep the CNIC hashing key stable. It uses `RAAST_CNIC_SECRET` when configured and otherwise uses the existing Auth.js secret. For judging, set `RAAST_ALLOW_PERSONAL_SIGNUP=false` and use a dedicated demo database. This setting requires an `@raastsahulat.example` address and a synthetic CNIC starting with `00000`, and suppresses external mail. Run `npm run migrate` to prepare the unique signup indexes in an existing database.
 
 ## Architecture and decision policy
 

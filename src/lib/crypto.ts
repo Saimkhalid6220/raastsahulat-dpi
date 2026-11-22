@@ -1,8 +1,14 @@
-import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 
 const derive = promisify(scrypt);
 export const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+
+export function hashAccountCnic(cnic: string) {
+  const secret = process.env.RAAST_CNIC_SECRET || process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!secret) throw new Error("Set RAAST_CNIC_SECRET or AUTH_SECRET for CNIC sign-in.");
+  return createHmac("sha256", secret).update(`citizen-cnic:${cnic}`).digest("hex");
+}
 
 export async function hashPassword(value: string) {
   const salt = randomBytes(16).toString("hex");
