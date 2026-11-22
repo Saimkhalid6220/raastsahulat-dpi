@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { routeConfidence, type RouterPolicy } from "./confidenceRouter";
-import { ReliefCase, connectDB } from "./db";
+import { ConsentRecord, ReliefCase, connectDB } from "./db";
 
 const inputSchema = z.object({
   amount: z.number().optional(),
@@ -17,6 +17,7 @@ const inputSchema = z.object({
   qrValid: z.boolean().default(true),
   repeatedClaim: z.boolean(),
   fraudSurge: z.boolean().default(false),
+  additionalProof: z.boolean().optional(),
 });
 function totals() {
   return { autoApproved: 0, escalated: 0, rejected: 0, payoutPKR: 0 };
@@ -27,15 +28,24 @@ export async function simulateRule(tenantId: string, draft: RouterPolicy) {
   const before = totals();
   const after = totals();
   let skipped = 0;
+  const grants = await ConsentRecord.aggregate<{ _id: { toString(): string } }>([
+    { $match: { granteeId: tenantId, granteeType: "DEPARTMENT", status: "ACTIVE", scopes: { $in: ["NADRA_IDENTITY", "BISP_POVERTY_SCORE"] } } },
+    { $unwind: "$scopes" },
+    { $group: { _id: "$citizenId", scopes: { $addToSet: "$scopes" } } },
+    { $match: { scopes: { $all: ["NADRA_IDENTITY", "BISP_POVERTY_SCORE"] } } },
+    { $project: { _id: 1 } },
+  ]);
+  const allowed = new Set(grants.map((grant) => grant._id.toString()));
   const history = ReliefCase.find({ tenantId, aiDecision: { $exists: true } })
-    .select("status requestedAmountPKR aiDecision").lean().cursor();
+    .select("citizenId status closedOutcome requestedAmountPKR aiDecision").lean().cursor();
   for await (const record of history) {
+    if (!allowed.has(record.citizenId.toString())) { skipped++; continue; }
     const source = inputSchema.safeParse(record.aiDecision?.auditorTrace?.inputs);
     if (!source.success) {
       skipped++;
       continue;
     }
-    if (record.status === "HUMAN_REJECTED") before.rejected++;
+    if ((record.closedOutcome ?? record.status) === "HUMAN_REJECTED") before.rejected++;
     else if (record.aiDecision?.action === "AUTO_APPROVED") {
       before.autoApproved++;
       before.payoutPKR += record.requestedAmountPKR;

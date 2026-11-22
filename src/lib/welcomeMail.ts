@@ -5,7 +5,7 @@ export async function sendCitizenWelcomeEmail(email: string) {
   const password = process.env.GMAIL_APP_PASSWORD?.replace(/\s+/g, "");
   const localPort = Number(process.env.RAAST_LOCAL_MAIL_PORT);
   const localMail = Number.isInteger(localPort) && localPort > 0 && localPort <= 65535;
-  if (!localMail && (!sender || !password)) return false;
+  if (!localMail && (process.env.RAAST_ALLOW_PERSONAL_SIGNUP !== "true" || !sender || !password)) return false;
 
   const transport = nodemailer.createTransport({
     ...(localMail

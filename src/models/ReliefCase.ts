@@ -3,7 +3,7 @@ import { caseStatuses, channels, reviewDecisions } from "../types";
 
 const documentData = new Schema({
   cnic: String, name: String, ocrConfidence: Number, tamperScore: Number,
-  qrValid: Boolean, documentFixture: String,
+  qrValid: Boolean, documentFixture: String, scanIssue: String, source: String,
 }, { _id: false });
 const decision = new Schema({
   action: { type: String, required: true },
@@ -37,11 +37,18 @@ const schema = new Schema({
   appliedRuleVersion: Number,
   appliedRuleSnapshot: Schema.Types.Mixed,
   officerReview: review,
+  assignedOfficerId: { type: Schema.Types.ObjectId, ref: "User" },
+  closedBy: { type: Schema.Types.ObjectId, ref: "User" },
+  closedAt: Date,
+  closedOutcome: { type: String, enum: ["HUMAN_REJECTED", "DISBURSED"] },
+  continuations: [new Schema({ key: String, hash: String }, { _id: false })],
+  additionalProof: Boolean,
   disbursementTxId: { type: String, unique: true, sparse: true },
   paymentError: String,
 }, { timestamps: true });
 schema.index({ tenantId: 1, citizenId: 1, createdAt: -1 });
 schema.index({ tenantId: 1, status: 1, "aiDecision.confidence": 1 });
+schema.index({ tenantId: 1, status: 1, updatedAt: -1 });
 
 export type IReliefCase = InferSchemaType<typeof schema>;
 export const ReliefCase: Model<IReliefCase> = mongoose.models.ReliefCase || mongoose.model("ReliefCase", schema);

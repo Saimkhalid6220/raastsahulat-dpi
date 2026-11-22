@@ -14,7 +14,12 @@ const schema = new Schema({
   simpleAdviceUr: { type: String, required: true },
   simpleAdviceEn: { type: String, required: true },
   groundTruthLabel: { type: String, enum: ["SCAM", "LEGITIMATE"] },
+  reviewStatus: { type: String, enum: ["PENDING", "REVIEWED"] },
+  reviewVerdict: { type: String, enum: verdicts },
+  reviewedBy: { type: Schema.Types.ObjectId, ref: "User" },
+  reviewedAt: Date,
 }, { timestamps: true });
+schema.index({ tenantId: 1, reviewStatus: 1, createdAt: 1 });
 
 export type IScamReport = InferSchemaType<typeof schema>;
 export const ScamReport: Model<IScamReport> = mongoose.models.ScamReport || mongoose.model("ScamReport", schema);

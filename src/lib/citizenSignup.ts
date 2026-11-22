@@ -1,14 +1,18 @@
 import { randomInt, randomUUID } from "node:crypto";
 import { CitizenProfile, connectDB, User } from "./db";
 import { hashPassword } from "./crypto";
-import { demoTenant } from "./fixtures";
+import { demoTenant, syntheticEmailDomain } from "./fixtures";
 import { ApiError, duplicateKey } from "./http";
+import { logAudit } from "./auditLogger";
 import { phoneticKey } from "./phonetic";
 import { sendCitizenWelcomeEmail } from "./welcomeMail";
 
 const syntheticName = "Demo Citizen";
 
 export async function registerCitizen(email: string, password: string) {
+  if (process.env.RAAST_ALLOW_PERSONAL_SIGNUP !== "true" && !email.endsWith(`@${syntheticEmailDomain}`)) {
+    throw new ApiError(400, "SYNTHETIC_EMAIL_REQUIRED", `Use a synthetic email ending in @${syntheticEmailDomain}.`);
+  }
   const db = await connectDB();
   await Promise.all([User.init(), CitizenProfile.init()]);
   const [passwordHash, helperAccessPinHash] = await Promise.all([
@@ -18,7 +22,7 @@ export async function registerCitizen(email: string, password: string) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const fixtureNumber = String(randomInt(10_000_000)).padStart(7, "0");
     try {
-      await db.connection.transaction(async (session) => {
+      const userId = await db.connection.transaction(async (session) => {
         const [user] = await User.create([{
           email, passwordHash, name: syntheticName, role: "CITIZEN",
           phone: `DEMO-PHONE-SIGNUP-${fixtureNumber}`, tenantId: demoTenant, preferredLang: "en",
@@ -29,7 +33,9 @@ export async function registerCitizen(email: string, password: string) {
           district: "Unspecified", isWidowOrDisabled: false, helperAccessPinHash,
           raastIbanMock: `MOCK-RAAST-SIGNUP-${fixtureNumber}`, demoLabel: "Synthetic signup household",
         }], { session });
+        return user.id as string;
       });
+      await logAudit({ id: userId, role: "CITIZEN", tenantId: demoTenant }, "CITIZEN_REGISTERED", "User", userId);
       return { emailSent: await sendCitizenWelcomeEmail(email) };
     } catch (error) {
       if (!duplicateKey(error)) throw error;

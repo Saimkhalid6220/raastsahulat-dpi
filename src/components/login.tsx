@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { UserRole } from "@/types";
+import { syntheticEmailDomain } from "@/lib/fixtures";
 import { Spinner } from "./loading";
 import { Brand, errorText, Icon, Notice, request } from "./shared";
 
@@ -16,7 +17,7 @@ const subscribeToHydration = () => () => {};
 const clientReady = () => true;
 const serverReady = () => false;
 
-export default function Login({ signup = false }: { signup?: boolean }) {
+export default function Login({ signup = false, personalSignup = false }: { signup?: boolean; personalSignup?: boolean }) {
   const router = useRouter();
   const ready = useSyncExternalStore(subscribeToHydration, clientReady, serverReady);
   const [error, setError] = useState("");
@@ -67,11 +68,11 @@ export default function Login({ signup = false }: { signup?: boolean }) {
           <h2>{signup ? "Create a citizen account" : "Sign in to RaastSahulat"}</h2>
           {registered ? <div className="form-stack">
             <Notice tone={registered.emailSent ? "success" : "warning"}>
-              {registered.emailSent ? "Account created. Check your inbox for a welcome email." : "Account created. The welcome email could not be sent. You can sign in now."}
+              {registered.emailSent ? "Account created. Check your inbox for a welcome email." : personalSignup ? "Account created. The welcome email could not be sent. You can sign in now." : "Demo account created. You can sign in now."}
             </Notice>
             <Link className="button primary wide" href="/login">Go to sign in</Link>
           </div> : <>
-            <p className="muted">{signup ? "Use an email address you can access." : "Enter your account email and password."}</p>
+            <p className="muted">{signup ? personalSignup ? "Use an email address you can access." : `Choose a synthetic address such as citizen-27@${syntheticEmailDomain}.` : "Enter your account email and password."}</p>
             {!signup && <div className="demo-roles" role="group" aria-label="Account role">
               {accounts.map(([label, accountRole]) => <button
                 type="button" className={role === accountRole ? "demo-role selected" : "demo-role"}

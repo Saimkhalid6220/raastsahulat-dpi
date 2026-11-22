@@ -10,7 +10,7 @@ test.beforeAll(async () => {
   const production = process.env.RAAST_E2E_PRODUCTION === "1";
   inbox = await startSmtpInbox();
   site = await startSyntheticSite(production ? ".next" : ".next-smoke", production, {
-    RAAST_LOCAL_MAIL_PORT: String(inbox.port), GMAIL_USER: "", GMAIL_APP_PASSWORD: "",
+    RAAST_LOCAL_MAIL_PORT: String(inbox.port), RAAST_ALLOW_PERSONAL_SIGNUP: "true", GMAIL_USER: "", GMAIL_APP_PASSWORD: "",
   });
 });
 test.afterAll(async () => {
@@ -140,8 +140,21 @@ test("citizen claim, officer payout, consent withdrawal, and auditor trace", asy
     await expect(page.getByRole("heading", { name: "آپ کا امدادی پورٹل" })).toBeVisible();
     await page.getByRole("button", { name: "Switch to English" }).click();
     await page.getByRole("navigation").getByRole("button", { name: "Apply for relief" }).click();
+    await citizen.context.setOffline(true);
+    await page.getByLabel("Requested amount (PKR)").fill("9000");
     await page.getByRole("button", { name: "Continue" }).click();
     await page.getByLabel("Sample scan condition").selectOption("BLURRY");
+    await expect(page.getByRole("button", { name: "Submit application" })).toBeDisabled();
+    await citizen.context.setOffline(false);
+    await page.reload();
+    await page.getByRole("navigation").getByRole("button", { name: "Apply for relief" }).click();
+    await expect(page.getByLabel("Sample scan condition")).toHaveValue("BLURRY");
+    await page.getByRole("button", { name: "Preview sample" }).click();
+    const uploaded = page.getByAltText("Synthetic document preview");
+    await expect(uploaded).toBeVisible();
+    const image = (await uploaded.getAttribute("src"))?.split(",")[1];
+    expect(image).toBeTruthy();
+    await page.getByLabel("Upload a synthetic document").setInputFiles({ name: "synthetic-blur.png", mimeType: "image/png", buffer: Buffer.from(image!, "base64") });
     await page.getByRole("button", { name: "Submit application" }).click();
     await expect(page.getByText("Human review", { exact: true })).toBeVisible();
     await expect(page.getByText("I am not sure the document is clear.", { exact: false })).toBeVisible();
@@ -184,6 +197,8 @@ test("citizen claim, officer payout, consent withdrawal, and auditor trace", asy
     await officer.page.getByRole("button", { name: "Record decision" }).click();
     await expect(officer.page.getByText("Decision recorded and mock payment sent.")).toBeVisible();
     await expect(officer.page.getByText(`MOCK-${caseNumber}`)).toBeVisible();
+    await officer.page.getByRole("button", { name: "Close case" }).click();
+    await expect(officer.page.getByText("Case closed.")).toBeVisible();
 
     await page.getByRole("navigation").getByRole("button", { name: "Data & consent" }).click();
     const identity = page.locator(".list-item").filter({ hasText: "Identity verification" });

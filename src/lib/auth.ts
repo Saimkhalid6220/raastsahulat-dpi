@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import { roles, type Actor, type UserRole } from "../types";
+import { logAudit } from "./auditLogger";
 import { authConfig } from "./auth.config";
 import { emailAddress } from "./contracts";
 import { connectDB, User } from "./db";
@@ -28,6 +29,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const user = await User.findOne({ email, isActive: true }).select("+passwordHash").lean();
         if (!await verifyPassword(password, user?.passwordHash ?? fallbackHash) || !user) return null;
         if (role && role !== user.role) return null;
+        await logAudit({ id: user._id.toString(), role: user.role, tenantId: user.tenantId }, "SIGNED_IN", "User", user._id.toString());
         return { id: user._id.toString(), name: user.name, email: user.email, role: user.role, tenantId: user.tenantId };
       },
     }),

@@ -2,17 +2,30 @@ import type { z } from "zod";
 import type { scamInput } from "./contracts";
 export type ScamInput = z.output<typeof scamInput>;
 
-export function classifyScam({ rawContent, senderHeader, channel, documentFixture }: ScamInput) {
+export function classifyDocument(scan: { tamperScore: number; qrValid: boolean; ocrConfidence: number; scanIssue?: string }) {
+  const verdict = scan.tamperScore > 0.25 ? "SCAM" : scan.qrValid ? "LEGITIMATE" : "UNSURE";
+  return {
+    verdict, redFlags: scan.scanIssue ? [scan.scanIssue] : [],
+    confidence: scan.ocrConfidence,
+    simpleAdviceEn: verdict === "SCAM" ? "The printed ID differs from the signed demo QR. Ask an officer to review it before relying on the document."
+      : verdict === "LEGITIMATE" ? "The printed ID matches the signed synthetic QR."
+        : "We could not verify the synthetic document. Ask an officer to review it or try a clearer image.",
+    simpleAdviceUr: verdict === "SCAM" ? "چھپا ہوا شناختی نمبر ڈیمو کیو آر سے مختلف ہے۔ دستاویز استعمال کرنے سے پہلے افسر سے جانچ کرائیں۔"
+      : verdict === "LEGITIMATE" ? "چھپا ہوا شناختی نمبر تصدیق شدہ فرضی کیو آر سے ملتا ہے۔"
+        : "فرضی دستاویز کی تصدیق نہیں ہو سکی۔ افسر سے رجوع کریں یا واضح تصویر آزمائیں۔",
+  } as const;
+}
+
+export function classifyScam({ rawContent, senderHeader }: ScamInput) {
   const checks = [
     { hit: /(?:8171|raast)/i.test(senderHeader ?? "") && !/^(8171|RAAST)$/i.test(senderHeader ?? ""), flag: "IMPERSONATED_SENDER" },
     { hit: /(?:pay|send|deposit).{0,36}(?:fee|charges)|فیس.{0,26}(?:ادا|بھیج)/iu.test(rawContent), flag: "UPFRONT_FEE" },
     { hit: /(?:send|share|confirm|enter|reply).{0,28}(?:OTP|PIN|password)|(?:پن|رمز).{0,26}بھیج/iu.test(rawContent), flag: "SECRET_REQUEST" },
     { hit: /(?:https?:\/\/|www\.|bit\.ly|tinyurl\.com)/i.test(rawContent), flag: "UNVERIFIED_LINK" },
     { hit: /(?:urgent|immediately|expires today|فوری)/i.test(rawContent), flag: "URGENCY" },
-    { hit: channel === "DOCUMENT_IMAGE" && documentFixture === "TAMPERED", flag: "DOCUMENT_TAMPER_SIGNAL" },
   ];
   const redFlags = checks.filter(({ hit }) => hit).map(({ flag }) => flag);
-  const severe = redFlags.some((flag) => ["UPFRONT_FEE", "SECRET_REQUEST", "IMPERSONATED_SENDER", "DOCUMENT_TAMPER_SIGNAL"].includes(flag));
+  const severe = redFlags.some((flag) => ["UPFRONT_FEE", "SECRET_REQUEST", "IMPERSONATED_SENDER"].includes(flag));
   const known = /^(8171|RAAST)$/i.test(senderHeader ?? "") && /\bdemo\b|\bmock\b/i.test(rawContent);
   const verdict = severe ? "SCAM" as const : known && !redFlags.length ? "LEGITIMATE" as const : "UNSURE" as const;
   return {

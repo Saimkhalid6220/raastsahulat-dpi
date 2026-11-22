@@ -65,7 +65,7 @@ export function Notice({ children, tone = "warning" }: { children: ReactNode; to
 }
 
 export class RequestError extends Error {
-  constructor(public code: string, message: string) { super(message); }
+  constructor(public code: string, message: string, public status: number) { super(message); }
 }
 export async function request<T>(path: string, method = "GET", data?: unknown): Promise<T> {
   const response = await fetch(path, {
@@ -74,7 +74,7 @@ export async function request<T>(path: string, method = "GET", data?: unknown): 
     cache: "no-store",
   });
   const body = await response.json();
-  if (!response.ok) throw new RequestError(body.error || "REQUEST_FAILED", body.message || body.error || "Request failed");
+  if (!response.ok) throw new RequestError(body.error || "REQUEST_FAILED", body.message || body.error || "Request failed", response.status);
   return body as T;
 }
 
@@ -101,12 +101,14 @@ export function useResource<T>(path: string) {
 export type CaseItem = {
   id: string; caseNumber: string; status: string; amount: number; citizenId: string; createdAt?: string;
   ruleVersion?: number; transactionId?: string; paymentError?: string;
+  assignedOfficerId?: string; closedAt?: string; closedOutcome?: string;
   decision?: { action: string; confidence: number; riskScore: number; reasons: string[]; en: string; ur: string };
 };
 export const statusLabels: Record<string, string> = {
   DRAFT: "Draft", AI_REVIEW: "Evaluating", AUTO_APPROVED: "Approved · payment pending",
   NEEDS_MORE_PROOF: "More proof requested", ESCALATED_HUMAN: "Human review",
   HUMAN_APPROVED: "Approved · payment pending", HUMAN_REJECTED: "Declined", DISBURSED: "Demo payment sent",
+  CLOSED: "Closed",
   ACTIVE: "Active", REVOKED: "Withdrawn", SCAM: "Likely scam", LEGITIMATE: "Known demo message", UNSURE: "Unverified",
 };
 export function Status({ value }: { value: string }) {

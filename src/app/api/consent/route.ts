@@ -2,7 +2,7 @@ import { logAudit } from "@/lib/auditLogger";
 import { requireRole } from "@/lib/auth";
 import { ownCitizenId } from "@/lib/consentGuard";
 import { consentChange } from "@/lib/contracts";
-import { CitizenProfile, ConsentRecord } from "@/lib/db";
+import { CitizenProfile, ConsentRecord, User } from "@/lib/db";
 import { api, ApiError, duplicateKey, json, readJson } from "@/lib/http";
 import type { Actor, ConsentScope } from "@/types";
 
@@ -19,8 +19,16 @@ async function target(actor: Actor, scope: ConsentScope) {
 export const GET = () => api(async () => {
   const actor = await requireRole(["CITIZEN"]);
   const citizenId = await ownCitizenId(actor);
-  const records = await ConsentRecord.find({ citizenId }).sort({ grantedAt: -1 }).limit(50).lean();
-  return json({ citizenId, records });
+  const [history, active] = await Promise.all([
+    ConsentRecord.find({ citizenId }).sort({ grantedAt: -1 }).limit(50).lean(),
+    ConsentRecord.find({ citizenId, status: "ACTIVE" }).lean(),
+  ]);
+  const records = [...new Map([...history, ...active].map((record) => [record._id.toString(), record])).values()];
+  const helpers = await User.find({ _id: { $in: records.filter((record) => record.granteeType === "HELPER").map((record) => record.granteeId) }, tenantId: actor.tenantId }).select("name").lean();
+  const labels = new Map(helpers.map((helper) => [helper._id.toString(), helper.name]));
+  return json({ citizenId, records: records.map((record) => ({
+    ...record, granteeName: record.granteeType === "HELPER" ? labels.get(record.granteeId) ?? "Community helper" : "Demo Relief Department",
+  })) });
 });
 export const POST = (request: Request) => api(async () => {
   const actor = await requireRole(["CITIZEN"]);

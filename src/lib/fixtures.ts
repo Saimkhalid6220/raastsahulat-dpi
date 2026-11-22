@@ -6,6 +6,9 @@ export const demoNames = [
   "Amina Bibi", "Muhammad Saleem", "Mohammad Salim", "Fatima Bibi", "Abdur Rehman",
   "Sakina Beevi", "Ayesha Noor", "Zainab Ali", "Razia Begum", "Nusrat Javed",
 ] as const;
+export const demoDistricts = ["Unspecified", "Karachi", "Badin", "Thatta", "Hyderabad", "Sukkur", "Multan"] as const;
+export const syntheticNames = [...demoNames, "Demo Citizen", "Amina Beevi", "Amina B.", "آمنہ بی بی"] as const;
+export const syntheticEmailDomain = "raastsahulat.example";
 export const demoScams = [
   ["8171-HELP", "Urgent! Pay a registration fee at http://relief-claim.example.invalid", "SCAM"],
   ["RAAST-HELP", "Confirm your PIN at https://cash.example.invalid", "SCAM"],

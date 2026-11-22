@@ -31,3 +31,17 @@ export async function compressImage(file: File) {
     bitmap.close();
   }
 }
+
+export type DocumentUpload = { image: string; type: string };
+
+export async function prepareDocumentUpload(file: File): Promise<DocumentUpload> {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error("Choose a synthetic PNG, JPEG, or WebP.");
+  if (file.size > 8 * 1024 * 1024) throw new Error("Choose a synthetic image smaller than 8 MB.");
+  const blob = file.size <= 250000 ? file : await compressImage(file);
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 16384) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 16384));
+  }
+  return { image: btoa(binary), type: blob.type };
+}

@@ -49,6 +49,7 @@ export async function evaluateCase(actor: Actor, caseNumber: string) {
     rawNameScore: nadra.online ? nadra.rawScore : 0, ocrConfidence: ocr ?? 0,
     tamperScore: tamper ?? 0, qrValid: doc?.qrValid === true, repeatedClaim: Boolean(repeated),
     fraudSurge: config.fraudSurge ?? false,
+    additionalProof: record.additionalProof ?? false,
   };
   const decision = routeConfidence(inputs, rule);
   const auditorTrace = {
@@ -56,6 +57,7 @@ export async function evaluateCase(actor: Actor, caseNumber: string) {
     prompt: null, inputs, threshold: rule?.minAutoConfidence ?? 0.92,
     fieldConfidence: { ocr: inputs.ocrConfidence, name: inputs.nameScore, cnic: Number(inputs.cnicMatches) },
     latencyMs: Math.round(performance.now() - start), tokenCost: 0,
+    documentSource: doc?.source, documentIssue: doc?.scanIssue,
     action: decision.action, eligibilityFailures: decision.eligibilityFailures,
   };
   const evaluated = await ReliefCase.findOneAndUpdate(

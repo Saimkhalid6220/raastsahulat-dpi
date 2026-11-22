@@ -12,6 +12,7 @@ export interface ConfidenceInputs extends EligibilityInputs {
   qrValid: boolean;
   repeatedClaim: boolean;
   fraudSurge: boolean;
+  additionalProof?: boolean;
 }
 
 export interface RouterPolicy {
@@ -35,6 +36,7 @@ export function routeConfidence(inputs: ConfidenceInputs, rule: RouterPolicy | n
     + 0.18 * Number(!inputs.qrValid));
   const rejected = rule ? eligibilityReasons(inputs, rule) : ["NO_ACTIVE_RULE"];
   const uncertaintyReasons = [...rejected];
+  if (inputs.additionalProof) uncertaintyReasons.push("ADDITIONAL_PROOF_REVIEW");
   if (!inputs.nadraOnline) uncertaintyReasons.push(inputs.nadraReason ?? "NADRA_UNAVAILABLE");
   else if (!inputs.cnicMatches) uncertaintyReasons.push("CNIC_MISSING_OR_MISMATCH");
   if (inputs.ocrConfidence < 0.8) uncertaintyReasons.push("BLURRY_OR_MISSING_DOCUMENT");

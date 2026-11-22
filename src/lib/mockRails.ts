@@ -43,10 +43,10 @@ export async function disburse(actor: Actor, caseNumber: string) {
   await connectDB();
   const query = { tenantId: actor.tenantId, caseNumber };
   const record = await ReliefCase.findOne(query)
-    .select("citizenId status requestedAmountPKR appliedRuleSnapshot disbursementTxId").lean();
+    .select("citizenId status closedOutcome requestedAmountPKR appliedRuleSnapshot disbursementTxId").lean();
   if (!record) throw new ApiError(404, "CASE_NOT_FOUND");
   await assertActiveConsent(record.citizenId.toString(), "RAAST_DISBURSEMENT", actor);
-  if (record.status === "DISBURSED" && record.disbursementTxId) {
+  if ((record.closedOutcome ?? record.status) === "DISBURSED" && record.disbursementTxId) {
     return { transactionId: record.disbursementTxId, replayed: true };
   }
   if (!["AUTO_APPROVED", "HUMAN_APPROVED"].includes(record.status)) {

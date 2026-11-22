@@ -19,6 +19,7 @@ const properties = (required: string[], fields: Record<string, unknown>) => ({
 const text = { type: "string" };
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const confidence = { type: "number", minimum: 0, maximum: 1 };
+const image = { type: "string", contentEncoding: "base64", maxLength: 340000, description: "Synthetic PNG, JPEG, or WebP card. The server derives scan readings from its bytes." };
 
 export const openapi = {
   openapi: "3.1.0",
@@ -36,14 +37,14 @@ export const openapi = {
     schemas: {
       Claim: properties(["requestedAmountPKR"], {
         citizenId: recordId, requestedAmountPKR: { type: "integer", minimum: 1, maximum: 100000 },
-        extractedDocData: ref("Document"), draft: { type: "boolean", default: false },
+        extractedDocData: ref("Document"), documentImage: image, draft: { type: "boolean", default: false },
         idempotencyKey: text, delegationToken: text,
       }),
-      Document: properties([], {
+      Document: { ...properties([], {
         cnic: { type: "string", pattern: "^00000-?[0-9]{7}-?[0-9]$" }, name: text, ocrConfidence: confidence,
         tamperScore: confidence, qrValid: { type: "boolean" },
         documentFixture: { enum: ["CLEAR", "BLURRY", "TAMPERED"] },
-      }),
+      }), description: "Mock fixture inputs for the keyed API and offline helper. Citizens submit an image for automatic evaluation." },
       Consent: properties(["scope"], { scope: { enum: ["NADRA_IDENTITY", "BISP_POVERTY_SCORE", "RAAST_DISBURSEMENT", "HELPER_DELEGATION"] } }),
       CitizenRef: properties(["citizenId"], { citizenId: recordId }),
       Nadra: properties(["citizenId"], {
@@ -58,9 +59,18 @@ export const openapi = {
       Review: properties(["decision", "notes"], {
         decision: { enum: ["APPROVE", "REJECT", "REQUEST_MORE_PROOF"] }, notes: { type: "string", minLength: 5 },
       }),
-      ScamCheck: properties(["channel", "rawContent"], {
+      ScamCheck: properties(["channel"], {
         channel: { enum: ["SMS", "WHATSAPP", "DOCUMENT_IMAGE"] }, rawContent: text, senderHeader: text,
-        documentFixture: { enum: ["CLEAR", "BLURRY", "TAMPERED"] },
+        documentImage: image,
+      }),
+      ScamReview: properties(["id", "verdict"], { id: recordId, verdict: { enum: ["SCAM", "LEGITIMATE", "UNSURE"] } }),
+      DocumentSample: properties(["name", "variant"], { name: text, variant: { enum: ["CLEAR", "BLURRY", "TAMPERED"] } }),
+      Continuation: properties(["documentImage", "idempotencyKey", "requestedAmountPKR"], {
+        documentImage: image, idempotencyKey: text, requestedAmountPKR: { type: "integer", minimum: 1, maximum: 100000 },
+      }),
+      CaseManagement: { oneOf: [properties(["action", "officerId"], { action: { const: "ASSIGN" }, officerId: recordId }), properties(["action"], { action: { const: "CLOSE" } })] },
+      ProfileCorrection: properties(["fullNameRaw", "district", "householdIncomePKR", "isWidowOrDisabled"], {
+        fullNameRaw: text, district: text, householdIncomePKR: { type: ["integer", "null"], minimum: 0, maximum: 100000 }, isWidowOrDisabled: { type: "boolean" },
       }),
       Policy: properties(
         ["maxAutoApprovePKR", "minAutoConfidence", "maxAutoRiskScore", "maxHouseholdIncomePKR", "requireWidowOrDisabled", "allowedDistricts", "changeNote"],
@@ -98,7 +108,12 @@ export const openapi = {
     "/api/cases/{id}": {
       parameters: [{ name: "id", in: "path", required: true, schema: recordId }],
       get: operation("Read a case with active consent"), patch: operation("Record an officer decision", { schema: "Review" }),
+      post: operation("Submit a saved draft or add requested synthetic proof to its original case", { schema: "Continuation" }),
+      put: operation("Assign or close a case as an officer", { schema: "CaseManagement" }),
     },
+    "/api/cases/officers": { get: operation("List the current department's active officers") },
+    "/api/profile": { get: operation("Read your synthetic profile"), patch: operation("Correct your synthetic profile", { schema: "ProfileCorrection" }) },
+    "/api/documents/sample": { post: operation("Generate a signed synthetic sample image", { schema: "DocumentSample" }) },
     "/api/consent": { get: operation("List your grants"), post: operation("Grant a scope", { schema: "Consent", created: true }), delete: operation("Withdraw a scope", { schema: "Consent" }) },
     "/api/mock/nadra/verify": { post: operation("Compare synthetic identity fields", { schema: "Nadra" }) },
     "/api/mock/bisp/records": { post: operation("Read synthetic eligibility inputs", { schema: "CitizenRef" }) },
@@ -107,7 +122,8 @@ export const openapi = {
     "/api/helper/roster": { get: operation("List assigned family aliases"), post: operation("Unlock one synthetic family", { schema: "Delegation" }) },
     "/api/rules": { get: operation("List policy versions"), post: operation("Publish a policy version", { schema: "Policy", created: true }) },
     "/api/rules/simulate": { post: operation("Replay a draft against historical inputs", { schema: "Policy" }) },
-    "/api/scam-check": { post: operation("Check a synthetic message for warning signs", { schema: "ScamCheck", created: true }) },
+    "/api/scam-check": { get: operation("List your scam reports sent for officer review"), post: operation("Check a synthetic message or document", { schema: "ScamCheck", created: true }) },
+    "/api/scam-check/review": { get: operation("Read the officer scam review queue"), patch: operation("Record an officer scam verdict", { schema: "ScamReview" }) },
     "/api/audit": { get: operation("Read the tenant audit chain") },
     "/api/audit/metrics": { get: operation("Read case and labeled scam evaluation metrics") },
     "/api/audit/cases/{id}": {

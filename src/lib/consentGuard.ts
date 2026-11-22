@@ -10,14 +10,17 @@ export async function ownCitizenId(actor: Actor) {
   return profile._id.toString();
 }
 
-export async function assertActiveConsent(citizenId: string, scope: ConsentScope, actor: Actor) {
+export async function hasActiveConsent(citizenId: string, scope: ConsentScope, actor: Actor) {
   await connectDB();
   const delegation = scope === "HELPER_DELEGATION";
-  const result = await ConsentRecord.exists({
+  return Boolean(await ConsentRecord.exists({
     citizenId, granteeId: delegation ? actor.id : actor.tenantId,
     granteeType: delegation ? "HELPER" : "DEPARTMENT", scopes: scope, status: "ACTIVE",
-  });
-  if (result) return;
+  }));
+}
+
+export async function assertActiveConsent(citizenId: string, scope: ConsentScope, actor: Actor) {
+  if (await hasActiveConsent(citizenId, scope, actor)) return;
   await logAudit(actor, "CONSENT_BLOCKED_ACCESS", "CitizenProfile", citizenId, { scope });
   throw new ApiError(403, "CONSENT_REVOKED", "Active consent is required for this action.");
 }

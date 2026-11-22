@@ -23,7 +23,7 @@ export async function api(handle: () => Promise<Response>) {
   }
 }
 
-export async function readJson<Schema extends z.ZodTypeAny>(request: Request, schema: Schema): Promise<z.output<Schema>> {
+export async function readJson<Schema extends z.ZodTypeAny>(request: Request, schema: Schema, maxBytes = 15 * 1024): Promise<z.output<Schema>> {
   const origin = request.headers.get("origin");
   if (origin) {
     const url = new URL(request.url);
@@ -36,7 +36,7 @@ export async function readJson<Schema extends z.ZodTypeAny>(request: Request, sc
     throw new ApiError(415, "JSON_REQUIRED");
   }
   const reader = request.body?.getReader();
-  const buffer = new Uint8Array(15 * 1024);
+  const buffer = new Uint8Array(maxBytes);
   let length = 0;
   while (reader) {
     const { done, value } = await reader.read();
