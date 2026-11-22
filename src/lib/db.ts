@@ -17,7 +17,7 @@ export async function connectDB() {
   if (!uri) throw new Error("Set MONGODB_URI to a dedicated synthetic-data database.");
   mongoose.set("bufferCommands", false);
   cached.raastConnection ??= mongoose.connect(uri, {
-    maxPoolSize: 10, serverSelectionTimeoutMS: 4000, socketTimeoutMS: 10000,
+    maxPoolSize: 10, serverSelectionTimeoutMS: 4000,
   });
   try {
     return await cached.raastConnection;
