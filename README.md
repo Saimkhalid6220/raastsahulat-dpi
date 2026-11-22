@@ -32,7 +32,7 @@ npm run seed
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Sign in using a demo role button or one of the accounts below.
+Open [http://localhost:3000](http://localhost:3000). Enter an email and password manually to sign in. Citizens can also create an account using an email address they can access.
 
 | Role | Demo account | Workspace |
 | --- | --- | --- |
@@ -45,6 +45,19 @@ Open [http://localhost:3000](http://localhost:3000). Sign in using a demo role b
 The shared demo password is `Demo@1234`. Synthetic families use PIN `1234` and demo consent code `246810`. The initial API key is `raastsahulat-synthetic-demo-key` and can be rotated from the admin workspace. Use the interactive explorer at `/api-docs` or load the OpenAPI 3.1 JSON at `/api/openapi`.
 
 The seed defines 40 helper-linked households, 160 initial grants, 15 historical cases, and 12 labeled scam examples. Reseeding preserves withdrawn consent. Synthetic CNICs begin with `00000`, phone values use `DEMO-PHONE-`, and Raast IDs use `MOCK-RAAST-`.
+
+### Citizen welcome email
+
+Set the Gmail sender credentials in `.env.local` or the hosted environment.
+
+```dotenv
+GMAIL_USER=your-sender@gmail.com
+GMAIL_APP_PASSWORD=your-google-app-password
+```
+
+Create an app password on the Gmail sender account after enabling 2-Step Verification. Citizens can sign up with any valid email address. Nodemailer sends a welcome email from the configured Gmail address. If delivery fails or the sender is missing, signup still creates the account and shows the delivery status. [Google app password setup](https://support.google.com/accounts/answer/185833)
+
+Signing up creates a synthetic claim profile. Citizens grant access to that profile from **Data & consent** before submitting a claim. Playwright captures welcome emails in a local SMTP inbox.
 
 ## Architecture and decision policy
 

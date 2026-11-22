@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { LoadingIndicator, LoadingSkeleton, ResourceLoading } from "./loading";
 import { errorText, formatDate, Notice, Panel, percent, reasonLabel, request, Status, useResource, Workspace, type CaseItem, type NavItem } from "./shared";
 
 type AuditEntry = { _id: string; sequence: number; action: string; entityId: string; entityType: string; actorRole: string; timestamp: string; hash: string; previousHash: string; metadata: unknown };
@@ -16,7 +17,7 @@ const nav: NavItem[] = [
 function Evaluation() {
   const metrics = useResource<Metrics>("/api/audit/metrics");
   if (metrics.error) return <Notice tone="danger">{metrics.error}</Notice>;
-  if (!metrics.data) return <p className="muted">Loading evaluation metrics…</p>;
+  if (!metrics.data) return <LoadingSkeleton label="Loading evaluation metrics…" />;
   const result = metrics.data;
   const cells = [
     ["Auto-approval rate", percent(result.autoApprovalRate)], ["Human escalation rate", percent(result.humanEscalationRate)],
@@ -55,25 +56,28 @@ export default function Auditor() {
   return <Workspace role="Auditor" active={screen} nav={nav} onNavigate={(value) => { setScreen(value); setError(""); setTrace(undefined); }}>
     <div className="page-heading"><div><h1>{nav.find(({ id }) => id === screen)?.label}</h1><p className="muted">Read-only oversight for synthetic decisions, consent changes, and payments.</p></div></div>
     {error && <Notice tone="danger">{error}</Notice>}
+    {busy && <LoadingIndicator label="Loading decision trace…" />}
     {trace && <Panel title={`Decision trace · ${trace.caseNumber}`} action={<button className="button" onClick={() => setTrace(undefined)}>Close trace</button>}>
       <div className="stack"><Status value={trace.status} /><details open><summary>Decision inputs and scores</summary><pre>{JSON.stringify(trace.auditorTrace ?? {}, null, 2)}</pre></details>
         <details><summary>Policy version {trace.ruleVersion ?? "—"} snapshot</summary><pre>{JSON.stringify(trace.ruleSnapshot ?? {}, null, 2)}</pre></details></div>
     </Panel>}
     {screen === "metrics" && <Evaluation />}
-    {screen === "audit" && <Panel title="Immutable audit timeline" action={<button className="button" onClick={() => { setBefore(undefined); audit.refresh(); }}>Refresh timeline</button>}>
+    {screen === "audit" && <Panel title="Immutable audit timeline" action={<button className="button" disabled={audit.loading} onClick={() => { setBefore(undefined); audit.refresh(); }}>Refresh timeline</button>}>
       <div className="stack">
         <label className="field">Search entries<input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="e.g. Consent revoked" /></label>
         {audit.error && <Notice tone="danger">{audit.error}</Notice>}
+        <ResourceLoading resource={audit} label="Loading audit history…" refreshLabel="Updating audit history…" />
         {visible?.length === 0 && <p className="muted">No matching events on this page.</p>}
         <div className="list">{visible?.map((entry) => <details key={entry._id} className="audit-entry">
           <summary>{reasonLabel(entry.action)} <span className="muted">· {entry.actorRole.toLowerCase()} · {formatDate(entry.timestamp)}</span></summary>
           <div className="stack"><pre>{JSON.stringify({ sequence: entry.sequence, entityId: entry.entityId, hash: entry.hash, previousHash: entry.previousHash, metadata: entry.metadata }, null, 2)}</pre>
           {entry.entityType === "ReliefCase" && <div><button className="button" disabled={busy} onClick={() => void inspect(entry.entityId)}>Inspect decision trace</button></div>}</div>
         </details>)}</div>
-        {audit.data?.entries.length === 40 && <div><button className="button" onClick={() => setBefore(audit.data?.entries.at(-1)?.sequence)}>Older entries</button></div>}
+        {audit.data?.entries.length === 40 && <div><button className="button" disabled={audit.loading} onClick={() => setBefore(audit.data?.entries.at(-1)?.sequence)}>Older entries</button></div>}
       </div>
     </Panel>}
     {screen === "cases" && <Panel title="Recorded decisions">
+      <ResourceLoading resource={cases} label="Loading recorded decisions…" />
       {cases.error && <Notice tone="danger">{cases.error}</Notice>}
       {cases.data?.cases.filter((record) => record.decision).map((record) => <div key={record.id} className="list-item"><div><strong>{record.caseNumber}</strong><small>Policy v{record.ruleVersion ?? "—"} · {formatDate(record.createdAt)}</small></div><div className="row"><Status value={record.status} /><button className="button" disabled={busy} onClick={() => void inspect(record.id)}>Inspect trace <span className="sr-only">{record.caseNumber}</span></button></div></div>)}
     </Panel>}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { LoadingIndicator, ResourceLoading } from "./loading";
 import { errorText, formatDate, money, Notice, Panel, percent, reasonLabel, request, Status, useResource, Workspace, type CaseItem, type NavItem } from "./shared";
 
 type Detail = CaseItem & {
@@ -17,46 +18,48 @@ export default function Officer() {
   const [action, setAction] = useState("APPROVE");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [activity, setActivity] = useState("");
+  const busy = Boolean(activity);
 
   async function inspect(id: string) {
-    setBusy(true); setError(""); setMessage(""); setNotes(""); setAction("APPROVE");
+    setActivity("Loading case…"); setError(""); setMessage(""); setNotes(""); setAction("APPROVE");
     try { setDetail(await request<Detail>(`/api/cases/${id}`)); }
     catch (failure) { setError(errorText(failure)); setDetail(undefined); }
-    finally { setBusy(false); }
+    finally { setActivity(""); }
   }
 
   async function review(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!detail) return;
-    setBusy(true); setError("");
+    setActivity("Recording decision…"); setError("");
     try {
       const updated = await request<Detail>(`/api/cases/${detail.id}`, "PATCH", { decision: action, notes });
       setDetail({ ...detail, ...updated });
       setMessage(updated.transactionId ? "Decision recorded and mock payment sent." : "Officer decision recorded.");
       queue.refresh();
     } catch (failure) { setError(errorText(failure)); }
-    finally { setBusy(false); }
+    finally { setActivity(""); }
   }
 
   async function retry() {
     if (!detail) return;
-    setBusy(true); setError("");
+    setActivity("Sending mock transfer…"); setError("");
     try {
       await request("/api/mock/raast/disburse", "POST", { caseNumber: detail.caseNumber });
       await inspect(detail.id);
       setMessage("Demo payment recorded.");
       queue.refresh();
     } catch (failure) { setError(errorText(failure)); }
-    finally { setBusy(false); }
+    finally { setActivity(""); }
   }
 
   const flags = detail?.decision?.reasons ?? [];
   const reviewable = detail && ["ESCALATED_HUMAN", "NEEDS_MORE_PROOF"].includes(detail.status);
   return <Workspace role="Officer" active="queue" nav={nav} onNavigate={() => { setDetail(undefined); }}>
-    <div className="page-heading"><div><h1>Review queue</h1><p className="muted">Escalated cases appear first, with the lowest confidence at the top.</p></div><button className="button" onClick={queue.refresh}>Refresh queue</button></div>
+    <div className="page-heading"><div><h1>Review queue</h1><p className="muted">Escalated cases appear first, with the lowest confidence at the top.</p></div><button className="button" disabled={queue.loading} onClick={queue.refresh}>Refresh queue</button></div>
     {(error || queue.error) && <Notice tone="danger">{error || queue.error}</Notice>}
     {message && <Notice tone="success">{message}</Notice>}
+    {activity && <LoadingIndicator label={activity} />}
     {detail && <div className="grid-2">
       <Panel title={detail.caseNumber} action={<Status value={detail.status} />}>
         <div className="stack">
@@ -87,10 +90,11 @@ export default function Officer() {
       </Panel>
     </div>}
     <Panel title="Cases awaiting action">
-      {!queue.data ? <p className="muted">Loading cases…</p> : queue.data.cases.length === 0 ? <p className="muted">No cases require action.</p> : <div className="table-wrap"><table>
+      <ResourceLoading resource={queue} label="Loading cases…" refreshLabel="Updating queue…" />
+      {queue.data && (queue.data.cases.length === 0 ? <p className="muted">No cases require action.</p> : <div className="table-wrap"><table>
         <thead><tr><th>Case</th><th>Status</th><th>Confidence</th><th>Amount</th><th>Review</th></tr></thead>
         <tbody>{queue.data.cases.map((record) => <tr key={record.id}><td><strong>{record.caseNumber}</strong><br /><small>{formatDate(record.createdAt)}</small></td><td><Status value={record.status} /></td><td>{percent(record.decision?.confidence)}</td><td>{money(record.amount)}</td><td><button className="button" disabled={busy} onClick={() => void inspect(record.id)}>Inspect <span className="sr-only">{record.caseNumber}</span></button></td></tr>)}</tbody>
-      </table></div>}
+      </table></div>)}
     </Panel>
   </Workspace>;
 }

@@ -1,27 +1,33 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
-import type { Actor, UserRole } from "../types";
+import { roles, type Actor, type UserRole } from "../types";
 import { authConfig } from "./auth.config";
+import { emailAddress } from "./contracts";
 import { connectDB, User } from "./db";
 import { sha256, verifyPassword } from "./crypto";
 import { ApiError } from "./http";
 
-const credentialsSchema = z.object({ email: z.string().trim().toLowerCase().email().max(100), password: z.string().min(1).max(100) });
+const credentialsSchema = z.object({
+  email: emailAddress,
+  password: z.string().min(1).max(100),
+  role: z.enum(roles).optional(),
+});
 const fallbackHash = `00000000000000000000000000000000:${"0".repeat(64)}`;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
     Credentials({
-      credentials: { email: { label: "Demo email", type: "email" }, password: { label: "Password", type: "password" } },
+      credentials: { email: { label: "Email", type: "email" }, password: { label: "Password", type: "password" } },
       async authorize(input) {
         const result = credentialsSchema.safeParse(input);
         if (!result.success) return null;
         await connectDB();
-        const { email, password } = result.data;
+        const { email, password, role } = result.data;
         const user = await User.findOne({ email, isActive: true }).select("+passwordHash").lean();
         if (!await verifyPassword(password, user?.passwordHash ?? fallbackHash) || !user) return null;
+        if (role && role !== user.role) return null;
         return { id: user._id.toString(), name: user.name, email: user.email, role: user.role, tenantId: user.tenantId };
       },
     }),

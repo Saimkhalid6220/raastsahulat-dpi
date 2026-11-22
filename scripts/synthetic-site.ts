@@ -23,7 +23,7 @@ async function availablePort() {
   return address.port;
 }
 
-export async function startSyntheticSite(distDir: string, production = false): Promise<SyntheticSite> {
+export async function startSyntheticSite(distDir: string, production = false, env?: Record<string, string>): Promise<SyntheticSite> {
   // Each launch seeds an isolated loopback replica set.
   const mongo = await startTestMongo();
   const previousUri = process.env.MONGODB_URI;
@@ -46,7 +46,7 @@ export async function startSyntheticSite(distDir: string, production = false): P
     const command = production ? ["start"] : ["dev", "--webpack"];
     const server = spawn(process.execPath, [join("node_modules", "next", "dist", "bin", "next"), ...command,
       "--hostname", "127.0.0.1", "--port", String(port)], {
-      env: { ...process.env, NODE_ENV: production ? "production" : "development",
+      env: { ...process.env, ...env, NODE_ENV: production ? "production" : "development",
         AUTH_SECRET: randomBytes(32).toString("hex"), AUTH_TRUST_HOST: "true", AUTH_URL: url, NEXTAUTH_URL: url,
         NEXT_TELEMETRY_DISABLED: "1", RAAST_NEXT_DIST_DIR: distDir },
       stdio: ["ignore", "pipe", "pipe"], detached: process.platform === "win32", windowsHide: true,

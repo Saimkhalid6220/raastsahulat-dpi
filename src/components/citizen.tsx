@@ -5,9 +5,11 @@ import Image from "next/image";
 import { demoNames, demoScams } from "@/lib/fixtures";
 import { compressImage, scanFixtures, syntheticDocument, type ScanFixture } from "@/lib/syntheticScan";
 import type { ConsentScope } from "@/types";
+import { ResourceLoading, Spinner } from "./loading";
 import { errorText, formatDate, Icon, listen, money, Notice, Panel, request, Status, useResource, Workspace, type CaseItem, type NavItem } from "./shared";
 
 type Lang = "en" | "ur";
+type ClaimFixture = { cnic: string; name: string };
 const scopeLabels: Record<ConsentScope, [string, string]> = {
   NADRA_IDENTITY: ["Identity verification", "شناخت کی تصدیق"],
   BISP_POVERTY_SCORE: ["Eligibility registry", "اہلیت کا ریکارڈ"],
@@ -30,9 +32,9 @@ function CaseList({ cases, lang }: { cases: CaseItem[]; lang: Lang }) {
   </div>)}{audio && <Notice>{audio}</Notice>}</div>;
 }
 
-function ClaimForm({ lang, onSave }: { lang: Lang; onSave: () => void }) {
+function ClaimForm({ lang, onSave, sample }: { lang: Lang; onSave: () => void; sample: ClaimFixture }) {
   const [step, setStep] = useState(1);
-  const [name, setName] = useState<string>(demoNames[0]);
+  const [name, setName] = useState(sample.name);
   const [amount, setAmount] = useState("10000");
   const [fixture, setFixture] = useState<ScanFixture>("CLEAR");
   const [preview, setPreview] = useState<{ url: string; bytes: number }>();
@@ -42,6 +44,7 @@ function ClaimForm({ lang, onSave }: { lang: Lang; onSave: () => void }) {
   const [busy, setBusy] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState("");
   const ur = lang === "ur";
+  const sampleNames = sample.name === demoNames[0] ? alternateNames : [sample.name];
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
 
   function voiceName() {
@@ -56,9 +59,9 @@ function ClaimForm({ lang, onSave }: { lang: Lang; onSave: () => void }) {
     recognition.lang = ur ? "ur-PK" : "en-PK";
     recognition.onresult = ({ results }) => {
       const transcript = results[0]?.[0]?.transcript.trim();
-      const match = alternateNames.find((item) => item.toLowerCase() === transcript?.toLowerCase());
+      const match = sampleNames.find((item) => item.toLowerCase() === transcript?.toLowerCase());
       if (match) { setName(match); setVoice(""); }
-      else setVoice(ur ? "ڈیمو نام کہیں: آمنہ بی بی۔" : "Say one of the displayed synthetic names.");
+      else setVoice(ur ? "دیا گیا فرضی نام کہیں۔" : "Say one of the displayed synthetic names.");
     };
     recognition.onerror = () => setVoice(ur ? "مائیک سے آواز نہیں مل سکی۔" : "The microphone could not capture speech.");
     try { recognition.start(); } catch { setVoice("The microphone is unavailable."); }
@@ -73,7 +76,7 @@ function ClaimForm({ lang, onSave }: { lang: Lang; onSave: () => void }) {
       const { record } = await request<{ record: CaseItem }>("/api/cases", "POST", {
         requestedAmountPKR: Number(amount), draft,
         idempotencyKey: draft ? window.crypto.randomUUID() : key,
-        ...(draft ? {} : { extractedDocData: syntheticDocument("0000000000001", name, fixture) }),
+        ...(draft ? {} : { extractedDocData: syntheticDocument(sample.cnic, name, fixture) }),
       });
       setSaved(record);
       setIdempotencyKey("");
@@ -96,7 +99,7 @@ function ClaimForm({ lang, onSave }: { lang: Lang; onSave: () => void }) {
       else void send();
     }}>
       {step === 1 ? <>
-        <label>{ur ? "فرضی نام" : "Synthetic name"}<select value={name} onChange={(event) => { setName(event.target.value); setIdempotencyKey(""); }}>{alternateNames.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label>{ur ? "فرضی نام" : "Synthetic name"}<select value={name} onChange={(event) => { setName(event.target.value); setIdempotencyKey(""); }}>{sampleNames.map((item) => <option key={item}>{item}</option>)}</select></label>
         <button type="button" className="button" onClick={voiceName}><Icon name="voice" size={18} />{ur ? "نام بولیں" : "Say the name"}</button>
         <label>{ur ? "درخواست کی رقم (روپے)" : "Requested amount (PKR)"}<input required type="number" min={1} max={100000} value={amount} onChange={(event) => { setAmount(event.target.value); setIdempotencyKey(""); }} /></label>
       </> : <>
@@ -115,7 +118,7 @@ function ClaimForm({ lang, onSave }: { lang: Lang; onSave: () => void }) {
       {error && <Notice tone="danger">{error}</Notice>}
       <div className="row">
         {step === 2 && <button type="button" className="button" onClick={() => setStep(1)}>{ur ? "واپس" : "Back"}</button>}
-        <button className="button primary" disabled={busy}>{busy ? ur ? "محفوظ ہو رہی ہے…" : "Saving…" : step === 1 ? ur ? "آگے" : "Continue" : ur ? "درخواست جمع کریں" : "Submit application"}</button>
+        <button className="button primary" disabled={busy}>{busy && <Spinner />}{busy ? ur ? "محفوظ ہو رہی ہے…" : "Saving…" : step === 1 ? ur ? "آگے" : "Continue" : ur ? "درخواست جمع کریں" : "Submit application"}</button>
         <button type="button" className="button" disabled={busy || Number(amount) < 1 || Number(amount) > 100000} onClick={() => void send(true)}>{ur ? "مسودہ محفوظ کریں" : "Save draft"}</button>
       </div>
     </form>
@@ -147,7 +150,7 @@ function ScamCheck({ lang }: { lang: Lang }) {
       {channel === "DOCUMENT_IMAGE" && <label>{ur ? "نمونہ" : "Fixture"}<select value={documentFixture} onChange={(event) => setDocumentFixture(event.target.value as ScanFixture)}>{scanFixtures.map((item) => <option key={item}>{item}</option>)}</select></label>}
       <label>{ur ? "بھیجنے والا" : "Sender label"}<input maxLength={40} value={sender} onChange={(event) => setSender(event.target.value)} placeholder="8171-HELP" /></label>
       <label>{ur ? "فرضی پیغام" : "Synthetic message"}<textarea value={rawContent} maxLength={1000} required onChange={(event) => setRawContent(event.target.value)} /></label>
-      <div><button className="button primary" disabled={busy}>{ur ? "پیغام چیک کریں" : "Check message"}</button></div>
+      <div><button className="button primary" disabled={busy}>{busy && <Spinner />}{busy ? ur ? "جانچ جاری ہے…" : "Checking message…" : ur ? "پیغام چیک کریں" : "Check message"}</button></div>
       {error && <Notice tone="danger">{error}</Notice>}
       {result && <div className="stack" aria-live="polite">
         <Status value={result.verdict} />
@@ -158,8 +161,9 @@ function ScamCheck({ lang }: { lang: Lang }) {
   </Panel>;
 }
 
-function ConsentCenter({ lang }: { lang: Lang }) {
-  const { data, error, refresh } = useResource<ConsentData>("/api/consent");
+function ConsentCenter({ lang, hasHelper }: { lang: Lang; hasHelper: boolean }) {
+  const consent = useResource<ConsentData>("/api/consent");
+  const { data, error, refresh } = consent;
   const [failure, setFailure] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState<ConsentScope>();
@@ -178,14 +182,16 @@ function ConsentCenter({ lang }: { lang: Lang }) {
   return <Panel title={ur ? "میرا ڈیٹا اور اجازت" : "My data and consent"}>
     <div className="stack">
       <p className="muted">{ur ? "آپ کسی بھی وقت رسائی واپس لے سکتے ہیں۔" : "Control which demo services and helpers can access your synthetic records."}</p>
+      <ResourceLoading resource={consent} label={ur ? "اجازتیں لوڈ ہو رہی ہیں…" : "Loading permissions…"}
+        refreshLabel={ur ? "اجازتیں تازہ ہو رہی ہیں…" : "Updating permissions…"} />
       {(failure || error) && <Notice tone="danger">{failure || error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
-      {data && <div className="list">{(Object.keys(scopeLabels) as ConsentScope[]).map((scope) => {
+      {data && <div className="list">{(Object.keys(scopeLabels) as ConsentScope[]).filter((scope) => hasHelper || scope !== "HELPER_DELEGATION").map((scope) => {
         const records = data.records.filter((record) => record.scopes.includes(scope));
         const active = records.some((record) => record.status === "ACTIVE");
         return <div className="list-item" key={scope}>
-          <div><strong>{scopeLabels[scope][ur ? 1 : 0]}</strong><small><Status value={active ? "ACTIVE" : "REVOKED"} /></small></div>
+          <div><strong>{scopeLabels[scope][ur ? 1 : 0]}</strong><small><Status value={active ? "ACTIVE" : records.length ? "REVOKED" : "NOT_GRANTED"} /></small></div>
           <button className={active ? "button danger" : "button"} disabled={Boolean(busy)} onClick={() => void change(scope, active)}>
-            {active ? ur ? "رسائی واپس لیں" : "Withdraw access now" : ur ? "رسائی دیں" : "Grant access"}
+            {busy === scope && <Spinner />}{busy === scope ? ur ? "محفوظ ہو رہی ہے…" : "Saving…" : active ? ur ? "رسائی واپس لیں" : "Withdraw access now" : ur ? "رسائی دیں" : "Grant access"}
           </button>
         </div>;
       })}</div>}
@@ -193,7 +199,7 @@ function ConsentCenter({ lang }: { lang: Lang }) {
   </Panel>;
 }
 
-export default function Citizen() {
+export default function Citizen({ fixture, hasHelper }: { fixture: ClaimFixture | null; hasHelper: boolean }) {
   const [screen, setScreen] = useState("home");
   const [lang, setLang] = useState<Lang>("en");
   const ur = lang === "ur";
@@ -222,11 +228,16 @@ export default function Citizen() {
       </section>
       {screen === "home" && <div className="grid-3">{nav.slice(1, 4).map((item, index) => <button className="service-card" key={item.id} onClick={() => setScreen(item.id)}><span className={`tile-icon ${["", "amber", "blue"][index]}`}><Icon name={item.icon} size={29} /></span><h2>{item.label}</h2><p className="muted">{descriptions[index]}</p></button>)}</div>}
       {(screen === "home" || screen === "cases") && <Panel title={ur ? "میری درخواستیں" : "My applications"}>
-        {cases.error ? <Notice tone="danger">{cases.error}</Notice> : cases.data ? <CaseList lang={lang} cases={screen === "home" ? cases.data.cases.slice(0, 3) : cases.data.cases} /> : <p className="muted">{ur ? "لوڈ ہو رہا ہے…" : "Loading applications…"}</p>}
+        <ResourceLoading resource={cases} label={ur ? "درخواستیں لوڈ ہو رہی ہیں…" : "Loading applications…"}
+          refreshLabel={ur ? "درخواستیں تازہ ہو رہی ہیں…" : "Updating applications…"} />
+        {cases.error && <Notice tone="danger">{cases.error}</Notice>}
+        {cases.data && <CaseList lang={lang} cases={screen === "home" ? cases.data.cases.slice(0, 3) : cases.data.cases} />}
       </Panel>}
-      {screen === "apply" && <ClaimForm lang={lang} onSave={cases.refresh} />}
+      {screen === "apply" && (fixture
+        ? <ClaimForm lang={lang} sample={fixture} onSave={cases.refresh} />
+        : <Notice tone="danger">{ur ? "فرضی پروفائل دستیاب نہیں ہے۔" : "Your synthetic profile is unavailable."}</Notice>)}
       {screen === "scam" && <ScamCheck lang={lang} />}
-      {screen === "consent" && <ConsentCenter lang={lang} />}
+      {screen === "consent" && <ConsentCenter lang={lang} hasHelper={hasHelper} />}
     </div>
   </Workspace>;
 }

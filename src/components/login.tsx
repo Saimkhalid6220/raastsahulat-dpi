@@ -1,37 +1,54 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, useTransition, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { demoPassword } from "@/lib/fixtures";
-import { Brand, Icon, Notice } from "./shared";
+import type { UserRole } from "@/types";
+import { Spinner } from "./loading";
+import { Brand, errorText, Icon, Notice, request } from "./shared";
 
 const accounts = [
-  ["Citizen", "citizen"], ["Helper", "helper"], ["Officer", "officer"], ["Admin", "admin"], ["Auditor", "auditor"],
+  ["Citizen", "CITIZEN"], ["Helper", "HELPER"], ["Officer", "OFFICER"], ["Admin", "ADMIN"], ["Auditor", "AUDITOR"],
 ] as const;
 
-export default function Login() {
+const subscribeToHydration = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
+
+export default function Login({ signup = false }: { signup?: boolean }) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const ready = useSyncExternalStore(subscribeToHydration, clientReady, serverReady);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [navigating, startNavigation] = useTransition();
+  const busy = submitting || navigating;
+  const [role, setRole] = useState<UserRole>();
+  const [registered, setRegistered] = useState<{ emailSent: boolean }>();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy(true);
+    const form = new FormData(event.currentTarget);
+    const email = String(form.get("email") ?? "");
+    const password = String(form.get("password") ?? "");
+    setSubmitting(true);
     setError("");
     try {
-      const result = await signIn("credentials", { email, password, redirect: false, redirectTo: "/" });
+      if (signup) {
+        setRegistered(await request<{ emailSent: boolean }>("/api/auth/signup", "POST", { email, password }));
+        return;
+      }
+      const result = await signIn("credentials", { email, password, ...(role && { role }), redirect: false, redirectTo: "/" });
       if (result?.ok && !result.error) {
-        router.replace("/");
-        router.refresh();
-      } else setError("These demo credentials could not sign in. Choose a demo role below.");
-    } catch {
-      setError("The demo sign-in service is unavailable. Try again.");
+        startNavigation(() => {
+          router.replace("/");
+          router.refresh();
+        });
+      } else setError("Could not sign in. Check your email, password, and selected role.");
+    } catch (failure) {
+      setError(signup ? errorText(failure) : "The sign-in service is unavailable. Try again.");
     } finally {
-      setBusy(false);
+      setSubmitting(false);
     }
   }
 
@@ -47,17 +64,33 @@ export default function Login() {
       </div>
       <div className="login-form-wrap">
         <div className="login-form">
-          <h2>Sign in to the demo</h2>
-          <p className="muted">Choose a demo role to fill in its credentials.</p>
-          <form onSubmit={submit} className="form-stack">
-            <label>Demo email<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="username" required /></label>
-            <label>Password<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" required /></label>
-            {error && <Notice tone="danger">{error}</Notice>}
-            <button className="button primary wide" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
-          </form>
-          <div className="demo-roles" aria-label="Demo roles">
-            {accounts.map(([label, account]) => <button className={email === `${account}@demo.pk` ? "demo-role selected" : "demo-role"} key={account} onClick={() => { setEmail(`${account}@demo.pk`); setPassword(demoPassword); setError(""); }}>{label}</button>)}
-          </div>
+          <h2>{signup ? "Create a citizen account" : "Sign in to RaastSahulat"}</h2>
+          {registered ? <div className="form-stack">
+            <Notice tone={registered.emailSent ? "success" : "warning"}>
+              {registered.emailSent ? "Account created. Check your inbox for a welcome email." : "Account created. The welcome email could not be sent. You can sign in now."}
+            </Notice>
+            <Link className="button primary wide" href="/login">Go to sign in</Link>
+          </div> : <>
+            <p className="muted">{signup ? "Use an email address you can access." : "Enter your account email and password."}</p>
+            {!signup && <div className="demo-roles" role="group" aria-label="Account role">
+              {accounts.map(([label, accountRole]) => <button
+                type="button" className={role === accountRole ? "demo-role selected" : "demo-role"}
+                aria-pressed={role === accountRole} key={accountRole} disabled={!ready || busy}
+                onClick={() => { setRole(accountRole); setError(""); }}
+              >{label}</button>)}
+            </div>}
+            <form method="post" onSubmit={submit} className="form-stack">
+              <label>Email address<input name="email" type="email" autoComplete="username" maxLength={254} required disabled={!ready} /></label>
+              <label>Password<input name="password" type="password" autoComplete={signup ? "new-password" : "current-password"} minLength={signup ? 8 : undefined} maxLength={100} required disabled={!ready} /></label>
+              {signup && <p className="muted">Use at least 8 characters.</p>}
+              {error && <Notice tone="danger">{error}</Notice>}
+              <button className="button primary wide" disabled={!ready || busy}>
+                {busy && <Spinner />}
+                {signup ? busy ? "Creating account…" : "Create account" : navigating ? "Opening dashboard…" : submitting ? "Signing in…" : "Sign in"}
+              </button>
+              <Link className="plain-button" href={signup ? "/login" : "/signup"}>{signup ? "Back to sign in" : "Create a citizen account"}</Link>
+            </form>
+          </>}
         </div>
       </div>
     </main>

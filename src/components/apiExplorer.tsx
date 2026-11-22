@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { Spinner } from "./loading";
 import Link from "next/link";
 import { openapi } from "@/lib/openapi";
 import { Brand, Notice, Panel } from "./shared";
@@ -75,7 +76,7 @@ export default function ApiExplorer() {
           {hasId && <label>Record ID<input required pattern="[a-fA-F0-9]{24}" value={recordId} onChange={(event) => setRecordId(event.target.value)} /></label>}
           {needsKey && <label>Demo API key<input type="password" autoComplete="off" value={key} onChange={(event) => setKey(event.target.value)} /></label>}
           {schema && <label>Request JSON<textarea className="font-mono" required value={data} onChange={(event) => setData(event.target.value)} /></label>}
-          <div><button className="button primary" disabled={busy}>Send request</button></div>
+          <div><button className="button primary" disabled={busy}>{busy && <Spinner />}{busy ? "Waiting for response…" : "Send request"}</button></div>
           {error && <Notice tone="danger">{error}</Notice>}
         </form>
       </Panel>

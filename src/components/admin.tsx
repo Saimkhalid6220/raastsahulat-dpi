@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import type { RuleInput } from "@/lib/contracts";
+import { LoadingIndicator, ResourceLoading } from "./loading";
 import { errorText, money, Notice, Panel, request, Status, useResource, Workspace, type NavItem } from "./shared";
 
 type Rule = RuleInput & { version: number; isActive: boolean; conditions?: unknown };
@@ -42,12 +43,13 @@ function RuleStudio({ live, onPublish }: { live: Rule; onPublish: (version: numb
   const [conditions, setConditions] = useState(live.conditions ? JSON.stringify(live.conditions, null, 2) : "");
   const [twin, setTwin] = useState<Twin>();
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [activity, setActivity] = useState("");
+  const busy = Boolean(activity);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const publish = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "publish";
-    setBusy(true); setError("");
+    setActivity(publish ? "Publishing policy…" : "Running simulation…"); setError("");
     try {
       const data = { maxAutoApprovePKR: cap, minAutoConfidence: confidence, maxAutoRiskScore: risk,
         maxHouseholdIncomePKR: income, requireWidowOrDisabled: required,
@@ -61,7 +63,7 @@ function RuleStudio({ live, onPublish }: { live: Rule; onPublish: (version: numb
         onPublish(rule.version);
       } else setTwin(await request<Twin>("/api/rules/simulate", "POST", data));
     } catch (failure) { setError(failure instanceof SyntaxError ? "The condition tree must contain valid JSON." : errorText(failure)); }
-    finally { setBusy(false); }
+    finally { setActivity(""); }
   }
 
   return <>
@@ -78,6 +80,7 @@ function RuleStudio({ live, onPublish }: { live: Rule; onPublish: (version: numb
         <details><summary>Advanced condition tree</summary><label>Condition JSON<textarea placeholder={'{"field":"district","operator":"equals","value":"Badin"}'} value={conditions} onChange={(event) => setConditions(event.target.value)} /></label></details>
         <label>Change note<input value={note} maxLength={250} onChange={(event) => setNote(event.target.value)} /></label>
         {error && <Notice tone="danger">{error}</Notice>}
+        {activity && <LoadingIndicator label={activity} />}
         <div className="row"><button className="button" value="simulate" disabled={busy}>Run Digital Twin simulation</button><button className="button primary" value="publish" disabled={busy}>Publish live rule v{live.version + 1}</button></div>
       </form>
     </Panel>
@@ -101,6 +104,8 @@ function FailureControls() {
   return <Panel title="Mock rail controls">
     {(config.error || error) && <Notice tone="danger">{config.error || error}</Notice>}
     {message && <Notice tone="success">{message}</Notice>}
+    <ResourceLoading resource={config} label="Loading mock settings…" refreshLabel="Updating mock settings…" />
+    {busy && <LoadingIndicator label="Saving mock settings…" />}
     {config.data && <div className="stack">
       <div className="list">{toggles.map(([label, key]) => <div key={key} className="list-item"><strong>{label}</strong><button className="button" aria-pressed={config.data![key]} disabled={busy} onClick={() => void change({ [key]: !config.data![key] })}>{config.data![key] ? "Enabled" : "Disabled"}<span className="sr-only"> {label}</span></button></div>)}</div>
       <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void change({ nadraLatencyMs: Number(latency || config.data?.nadraLatencyMs) }); }}>
@@ -128,6 +133,8 @@ function Accounts() {
   return <>
     <Panel title="Synthetic accounts">
       {(accounts.error || error) && <Notice tone="danger">{accounts.error || error}</Notice>}
+      <ResourceLoading resource={accounts} label="Loading accounts…" refreshLabel="Updating accounts…" />
+      {busy && <LoadingIndicator label="Applying account changes…" />}
       {accounts.data?.accounts.map((account) => <div key={account._id} className="list-item"><div><strong>{account.email}</strong><small>{account.role}</small></div>
         <div className="row"><Status value={account.isActive ? "ACTIVE" : "DISABLED"} />{account.role !== "ADMIN" && <button disabled={busy} className="button" onClick={() => void change({ action: "set-active", userId: account._id, active: !account.isActive })}>{account.isActive ? "Disable" : "Enable"}</button>}</div>
       </div>)}
@@ -151,7 +158,9 @@ export default function Admin() {
     {screen === "rules" && <>
       {rules.error && <Notice tone="danger">{rules.error}</Notice>}
       {message && <Notice tone="success">{message}</Notice>}
-      {live ? <RuleStudio key={live.version} live={live} onPublish={(version) => { setMessage(`Policy v${version} is live.`); rules.refresh(); }} /> : <p className="muted">Loading active policy…</p>}
+      <ResourceLoading resource={rules} label="Loading active policy…" refreshLabel="Updating policy…" />
+      {live && <RuleStudio key={live.version} live={live} onPublish={(version) => { setMessage(`Policy v${version} is live.`); rules.refresh(); }} />}
+      {rules.data && !live && <p className="muted">There is no active policy.</p>}
       {rules.data && <Panel title="Version history">{rules.data.rules.map((rule) => <div className="list-item" key={rule.version}><div><strong>Policy v{rule.version}</strong><small>{rule.changeNote}</small></div><Status value={rule.isActive ? "ACTIVE" : "ARCHIVED"} /></div>)}</Panel>}
     </>}
     {screen === "rails" && <FailureControls />}

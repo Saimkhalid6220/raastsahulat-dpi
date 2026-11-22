@@ -83,16 +83,19 @@ export function errorText(error: unknown) {
   return "The demo service could not be reached. Please try again.";
 }
 export function useResource<T>(path: string) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState("");
+  const [settled, setSettled] = useState<{ path: string; revision: number; data: T | null; error: string }>();
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     let active = true;
-    void request<T>(path).then((value) => { if (active) { setData(value); setError(""); } })
-      .catch((failure) => { if (active) setError(errorText(failure)); });
+    void request<T>(path)
+      .then((data) => { if (active) setSettled({ path, revision, data, error: "" }); })
+      .catch((failure) => {
+        if (active) setSettled((previous) => ({ path, revision, data: previous?.data ?? null, error: errorText(failure) }));
+      });
     return () => { active = false; };
   }, [path, revision]);
-  return { data, error, refresh: () => setRevision((current) => current + 1) };
+  const loading = !settled || settled.path !== path || settled.revision !== revision;
+  return { data: settled?.data ?? null, error: loading ? "" : settled.error, loading, refresh: () => setRevision((current) => current + 1) };
 }
 
 export type CaseItem = {

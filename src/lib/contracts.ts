@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { consentScopes, reviewDecisions, scamChannels } from "../types";
 
+export const emailAddress = z.string().trim().toLowerCase().email().max(254);
+export const citizenSignupInput = z.object({
+  email: emailAddress,
+  password: z.string().min(8).max(100),
+}).strict();
+
 export const objectId = z.string().regex(/^[a-f0-9]{24}$/i, "Expected a record ID");
 export const mockCnic = z.string().max(15).transform((input) => input.replaceAll("-", ""))
   .pipe(z.string().regex(/^00000\d{8}$/, "Use a synthetic CNIC beginning with 00000"));

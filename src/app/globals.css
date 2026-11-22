@@ -40,6 +40,18 @@ button:disabled { cursor: wait; opacity: .58; }
 .nav-button.active { background: #dcefe5; color: var(--deep); }
 .sidebar-link { margin-top: 1.6rem; }
 .workspace-content { min-width: 0; padding: clamp(1rem, 3.6vw, 3.3rem); display: flex; flex-direction: column; gap: 1.3rem; }
+.workspace-loading { width: min(100%, 960px); margin-inline: auto; }
+.loading-indicator { display: flex; align-items: center; gap: .55rem; color: var(--muted); }
+.loading-spinner { display: inline-block; flex: 0 0 auto; width: 1em; height: 1em; border: 2px solid currentColor; border-inline-end-color: transparent; border-radius: 50%; animation: loading-spin .75s linear infinite; }
+.loading-skeleton { display: grid; gap: .65rem; }
+.loading-skeleton span { display: block; height: 1.1rem; width: 100%; background: #e3eee7; border-radius: 7px; animation: loading-pulse 1.35s ease-in-out infinite alternate; }
+.loading-skeleton span:nth-child(2) { width: 82%; }
+.loading-skeleton span:nth-child(3) { width: 62%; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+@keyframes loading-pulse { to { opacity: .48; } }
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner, .loading-skeleton span { animation: none; }
+}
 .page-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: end; }
 .page-heading h1 { font-size: clamp(2rem, 4vw, 3.1rem); font-weight: 760; letter-spacing: -.047em; }
 .page-heading p { margin-top: .55rem; max-width: 57ch; }
